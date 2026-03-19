@@ -5,7 +5,7 @@ import type { Report, BinStatus, BinType } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import SuccessModal from '../components/SuccessModal';
 import { toast } from 'react-hot-toast';
-import { FileText, MapPin, Camera, MessageSquare, Send, Layers, Loader2, User, Phone, Clock, BarChart3, AlertCircle } from 'lucide-react';
+import { FileText, MapPin, Camera, MessageSquare, Send, Layers, Loader2, User, Phone, Clock, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const LOCATIONS: string[] = [
