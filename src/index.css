@@ -1,0 +1,415 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* WhatsApp Inspired Palette */
+  --wa-dark: #075E54;
+  --wa-light: #128C7E;
+  --wa-accent: #25D366;
+  --wa-bg: #fdfdfd;
+  --wa-chat-bg: #ece5dd;
+
+  --primary: var(--wa-dark);
+  --primary-light: var(--wa-light);
+  --accent: var(--wa-accent);
+
+
+  /* Status Colors */
+  --status-overflowing: #ef4444;
+  --status-75: #f97316;
+  --status-half: #eab308;
+  --status-empty: #22c55e;
+  --status-dump: #a855f7;
+
+  /* Neutrals */
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+
+  /* Premium Tokens */
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --shadow-premium: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-blur: blur(12px);
+
+  /* Typography */
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button:active {
+  transform: scale(0.96);
+}
+
+.card {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-premium);
+  padding: 1rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+h2 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+p,
+span,
+td,
+th {
+  font-size: 14px;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex-grow: 1;
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    padding: 1rem;
+    padding-bottom: 5rem;
+    /* Space for sticky nav or bottom widgets */
+  }
+
+  h1 {
+    font-size: 1.5rem !important;
+  }
+
+  h2 {
+    font-size: 1.25rem !important;
+  }
+
+  .card {
+    padding: 1rem !important;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 0.75rem;
+  }
+
+  .grid-responsive {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+}
+
+
+/* Leaflet Map Styles */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  z-index: 1;
+}
+
+.map-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+
+/* Marker Pulse Annotation */
+@keyframes pulse-red {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+/* 
+.critical-marker {
+  /* Animation removed to prevent Leaflet transform conflict. Pulse is now on inner dot. */
+/* } */
+
+/* WhatsApp Style Components */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 65px;
+  background: white;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  border-top: 1px solid #f1f5f9;
+  z-index: 1000;
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+  flex: 1;
+}
+
+.bottom-nav-item.active {
+  color: var(--wa-dark);
+}
+
+.fab {
+  position: fixed;
+  bottom: 85px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  background: var(--wa-accent);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
+  z-index: 999;
+  cursor: pointer;
+  border: none;
+}
+
+.chat-item {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  background: white;
+  border-bottom: 1px solid #f1f5f9;
+  gap: 1rem;
+  cursor: pointer;
+}
+
+.chat-item:active {
+  background-color: #f8fafc;
+}
+
+.avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+@keyframes pulse-accent {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 15px rgba(37, 211, 102, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0);
+  }
+}
+
+.pulse-wa {
+  animation: pulse-accent 2s infinite;
+}
+
+
+/* Chart animations and hover effects */
+.recharts-bar-rectangle {
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+
+.recharts-bar-rectangle:hover {
+  filter: brightness(0.95) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+  transform: scale(1.02);
+  transform-origin: bottom;
+  cursor: pointer;
+}
+
+.recharts-tooltip-wrapper {
+  transition: transform 0.1s ease !important;
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.chart-card:hover {
+  animation: float 3s ease-in-out infinite;
+  transition: box-shadow 0.3s ease;
+}
+
+/* Dashboard card enhancements */
+.stat-card-highlight {
+  border: 1.5px solid rgba(239, 68, 68, 0.2);
+  background: linear-gradient(145deg, #ffffff, #fff5f5);
+}
+
+/* Modern chart container */
+.modern-chart-card {
+  background: linear-gradient(145deg, #ffffff 0%, #fafafa 100%);
+  border-radius: 24px;
+  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.1), 0 4px 18px rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+}
+
+/* Chart header icon */
+.chart-icon-wrapper {
+  background: linear-gradient(135deg, #128C7E 0%, #075E54 100%);
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 12px rgba(18, 140, 126, 0.2);
+}
+
+/* Live data badge */
+.live-badge {
+  background: #f0f2f5;
+  padding: 4px 10px;
+  border-radius: 30px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #075E54;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Chart legend items */
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+}
+
+/* Priority badge */
+.priority-badge {
+  background: rgba(18, 140, 126, 0.1);
+  padding: 4px 12px;
+  border-radius: 30px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #128C7E;
+}
+
+/* Remove default focus outlines */
+*:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Optional: Add custom focus style for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--wa-dark);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.main-content {
+  padding-bottom: 100px;
+  /* Space for bottom navigation */
+}
