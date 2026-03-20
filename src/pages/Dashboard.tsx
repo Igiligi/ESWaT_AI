@@ -51,15 +51,14 @@ const Dashboard = () => {
 
   const allLocations = [...new Set(reports.map(r => r.Location as string))];
   const barData = allLocations.map(loc => ({
-  name: loc,
-  Overflowing: reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Overflowing').length,
-  '75% full': reports.filter(r => r.Location === loc && r['What is the current bin status?'] === '75% full').length,
-  'Half-full': reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Half-full').length,
-  Empty: reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Empty').length
-  // OpenDump removed
-}))
-  .sort((a, b) => (b.Overflowing) - (a.Overflowing))
-  .slice(0, 5);
+    name: loc,
+    Overflowing: reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Overflowing').length,
+    '75% full': reports.filter(r => r.Location === loc && r['What is the current bin status?'] === '75% full').length,
+    'Half-full': reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Half-full').length,
+    Empty: reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Empty').length
+  }))
+    .sort((a, b) => (b.Overflowing) - (a.Overflowing))
+    .slice(0, 5);
 
   const chartContainerStyle: React.CSSProperties = {
     padding: '1.5rem',
@@ -97,9 +96,10 @@ const Dashboard = () => {
         <StatCard icon={<Trash2 size={22} />} label="Waste Bins" value={stats.wasteBin} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
+      {/* Charts Grid - Responsive */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
 
-        {/* Site Distribution Chart */}
+        {/* Chart 1: Site Distribution */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
@@ -108,20 +108,18 @@ const Dashboard = () => {
           className="card"
           style={chartContainerStyle}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--wa-dark)', fontWeight: 800 }}>
                 <BarChart2 size={18} /> Site Distribution
               </h3>
-              {/* Simple description for layperson */}
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: '#667781' }}>
-                Shows how many are proper waste bins vs open dumps
+                Shows Proper Waste Bins vs Open Dumps 
               </p>
             </div>
             <span style={{ fontSize: '0.7rem', backgroundColor: '#f0f2f5', padding: '0.25rem 0.5rem', borderRadius: '4px', color: '#667781', fontWeight: 700 }}>LIVE</span>
           </div>
-          <div style={{ height: '280px', width: '100%', position: 'relative' }}>
-            {/* Center Overlay */}
+          <div style={{ height: '280px', width: '100%', minHeight: '200px', position: 'relative' }}>
             <div style={{
               position: 'absolute',
               top: '47%',
@@ -146,7 +144,6 @@ const Dashboard = () => {
                 </div>
               )}
             </div>
-
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -181,7 +178,7 @@ const Dashboard = () => {
           </div>
         </motion.div>
 
-        {/* Status Distribution Chart */}
+        {/* Chart 2: Bin Status Overview */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
@@ -190,20 +187,18 @@ const Dashboard = () => {
           className="card"
           style={chartContainerStyle}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--wa-dark)', fontWeight: 800 }}>
                 <TrendingUp size={18} /> Bin Status Overview
               </h3>
-              {/* Simple description with emoji legend */}
               {/* <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: '#667781' }}>
                 🔴 Overflowing | 🟠 75% full | 🟡 Half-full | 🟢 Empty
               </p> */}
             </div>
             <span style={{ fontSize: '0.7rem', backgroundColor: '#f0f2f5', padding: '0.25rem 0.5rem', borderRadius: '4px', color: '#667781', fontWeight: 700 }}>LIVE</span>
           </div>
-          <div style={{ height: '280px', width: '100%', position: 'relative' }}>
-            {/* Center Overlay */}
+          <div style={{ height: '280px', width: '100%', minHeight: '200px', position: 'relative' }}>
             <div style={{
               position: 'absolute',
               top: '47%',
@@ -228,7 +223,6 @@ const Dashboard = () => {
                 </div>
               )}
             </div>
-
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -263,7 +257,7 @@ const Dashboard = () => {
           </div>
         </motion.div>
 
-        {/* District Chart */}
+        {/* Chart 3: Top Districts */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -278,28 +272,23 @@ const Dashboard = () => {
             border: '1px solid #f0f2f5'
           }}
         >
-          {/* Simple Header */}
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '1.5rem'
+            alignItems: 'flex-start',
+            marginBottom: '1rem',
+            flexWrap: 'wrap',
+            gap: '0.5rem'
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <MapPin size={18} color="#075E54" />
-                <h3 style={{
-                  margin: 0,
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  color: '#1e293b'
-                }}>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#1e293b' }}>
                   Top Districts
                 </h3>
               </div>
-              {/* Simple description for layperson */}
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: '#667781' }}>
-                Areas with the most waste problems (higher bars = more reports)
+                Shows areas with the most waste problems (higher bars = more reports)
               </p>
             </div>
             <span style={{
@@ -309,25 +298,18 @@ const Dashboard = () => {
               borderRadius: '4px',
               color: '#667781',
               fontWeight: 700
-            }}>{barData.length} LIVE AREAS
-            </span>
+            }}>{barData.length} AREAS LIVE</span>
           </div>
 
-          {/* Chart Container with Rising Bars */}
-          <div style={{ height: '240px', width: '100%' }}>
+          <div style={{ height: '240px', minHeight: '200px', width: '100%' }}>
             <ResponsiveContainer width="100%" height="100%">
               <ReBarChart
                 data={barData}
-                margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
+                margin={{ top: 10, right: 20, left: 0, bottom: 40 }}
                 barSize={24}
                 barGap={4}
               >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#e2e8f0"
-                />
-
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis
                   dataKey="name"
                   axisLine={false}
@@ -338,14 +320,12 @@ const Dashboard = () => {
                   textAnchor="end"
                   height={50}
                 />
-
                 <YAxis
                   axisLine={false}
                   tickLine={false}
                   tick={{ fontSize: 10, fill: '#94a3b8' }}
                   width={30}
                 />
-
                 <Tooltip
                   cursor={{ fill: 'rgba(7, 94, 84, 0.02)' }}
                   contentStyle={{
@@ -356,80 +336,24 @@ const Dashboard = () => {
                     fontSize: '12px',
                     background: 'rgba(255,255,255,0.98)'
                   }}
-                  // Add friendly names to tooltips
                   formatter={(value, name) => {
-  const friendlyNames: Record<string, string> = {
-    'Overflowing': '🔴 Overflowing',
-    '75% full': '🟠 75% full',
-    'Half-full': '🟡 Half-full',
-    'Empty': '🟢 Empty'
-  };
-  return [value, friendlyNames[name || ''] || name || ''];
-}}
+                    const friendlyNames: Record<string, string> = {
+                      'Overflowing': '🔴 Overflowing',
+                      '75% full': '🟠 75% full',
+                      'Half-full': '🟡 Half-full',
+                      'Empty': '🟢 Empty'
+                    };
+                    return [value, friendlyNames[name || ''] || name || ''];
+                  }}
                 />
-
-                {/* Animated Bars - Rising from bottom */}
-                <Bar
-                  dataKey="Overflowing"
-                  stackId="a"
-                  fill="#ef4444"
-                  radius={[2, 2, 2, 2]}
-                  isAnimationActive={true}
-                  animationBegin={0}
-                  animationDuration={1500}
-                  animationEasing="ease-out"
-                />
-
-                <Bar
-                  dataKey="OpenDump"
-                  name="Open Dump"
-                  stackId="a"
-                  fill="#a855f7"
-                  radius={[2, 2, 2, 2]}
-                  isAnimationActive={true}
-                  animationBegin={200}
-                  animationDuration={1500}
-                  animationEasing="ease-out"
-                />
-
-                <Bar
-                  dataKey="75% full"
-                  name="75% Full"
-                  stackId="a"
-                  fill="#f97316"
-                  radius={[2, 2, 2, 2]}
-                  isAnimationActive={true}
-                  animationBegin={400}
-                  animationDuration={1500}
-                  animationEasing="ease-out"
-                />
-
-                <Bar
-                  dataKey="Half-full"
-                  stackId="a"
-                  fill="#eab308"
-                  radius={[2, 2, 2, 2]}
-                  isAnimationActive={true}
-                  animationBegin={600}
-                  animationDuration={1500}
-                  animationEasing="ease-out"
-                />
-
-                <Bar
-                  dataKey="Empty"
-                  stackId="a"
-                  fill="#22c55e"
-                  radius={[2, 2, 2, 2]}
-                  isAnimationActive={true}
-                  animationBegin={800}
-                  animationDuration={1500}
-                  animationEasing="ease-out"
-                />
+                <Bar dataKey="Overflowing" stackId="a" fill="#ef4444" radius={[2, 2, 2, 2]} />
+                <Bar dataKey="75% full" name="75% Full" stackId="a" fill="#f97316" radius={[2, 2, 2, 2]} />
+                <Bar dataKey="Half-full" stackId="a" fill="#eab308" radius={[2, 2, 2, 2]} />
+                <Bar dataKey="Empty" stackId="a" fill="#22c55e" radius={[2, 2, 2, 2]} />
               </ReBarChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Simple Legend - Mobile Responsive */}
           <div style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -440,61 +364,12 @@ const Dashboard = () => {
             borderTop: '1px solid #f1f5f9'
           }}>
             <LegendItem color="#ef4444" label="Overflow" />
-            {/* <LegendItem color="#a855f7" label="Dump" /> */}
             <LegendItem color="#f97316" label="75%" />
             <LegendItem color="#eab308" label="Half" />
             <LegendItem color="#22c55e" label="Empty" />
           </div>
         </motion.div>
       </div>
-
-      {/* Hotspots List (WhatsApp Style) */}
-      {/* <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        style={{ marginTop: '2.5rem' }}
-      >
-        <div style={{ padding: '0.85rem 1.25rem', backgroundColor: '#f0f2f5', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <h3 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: '#667781', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Critical Hotspots</h3>
-          <span style={{ fontSize: '0.7rem', color: '#667781', fontWeight: 600 }}>REPORTS SCALE</span>
-        </div>
-        <div style={{ backgroundColor: '#f0f2f5', borderRadius: '0 0 14px 14px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
-          {barData.length === 0 ? (
-            <div className="chat-item" style={{ padding: '3rem', justifyContent: 'center' }}>
-              <p style={{ color: '#667781' }}>No hotspot data recorded yet.</p>
-            </div>
-          ) : (
-            barData.map((loc, i) => (
-              <div key={loc.name} className="chat-item">
-                <div className="avatar" style={{
-                  backgroundColor: i === 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(18, 140, 126, 0.1)',
-                  color: i === 0 ? '#ef4444' : '#128C7E',
-                  fontWeight: 900,
-                  fontSize: '1rem'
-                }}>
-                  {i + 1}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)' }}>{loc.name}</h4>
-                    <span style={{ fontSize: '1.4rem', fontWeight: 900, color: (loc.Overflowing + loc.OpenDump) > 5 ? '#ef4444' : 'var(--wa-dark)' }}>
-                      {loc.Overflowing + loc.OpenDump}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#667781', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <MapPin size={14} />
-                      {(loc.Overflowing + loc.OpenDump) > 5 ? 'Priority Action Zone' : 'High Frequency Site'}
-                    </p>
-                    <span style={{ fontSize: '0.65rem', color: '#667781', fontWeight: 700, textTransform: 'uppercase' }}>Submissions</span>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </motion.div> */}
     </div>
   );
 };
