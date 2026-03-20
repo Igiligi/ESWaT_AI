@@ -210,7 +210,10 @@ export default function MapDirectory() {
       const basePos = areaCoords[area] || ENUGU_CENTER;
 
       const seedText = landmark + (r.id || r.Timestamp || "");
-      const hash = seedText.split("").reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
+      const hash = seedText.split("").reduce((a: number, b: string) => { 
+  a = ((a << 5) - a) + b.charCodeAt(0); 
+  return a & a; 
+}, 0);
       const jitterLat = ((Math.abs(hash) % 200) / 200 - 0.5) * 0.015;
       const jitterLng = ((Math.abs(hash * 31) % 200) / 200 - 0.5) * 0.015;
 

@@ -19,13 +19,13 @@ interface InteractiveTutorialProps {
 const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
-  const [showWelcome, setShowWelcome] = useState(true);
+//   const [showWelcome, setShowWelcome] = useState(true);
 
   // Reset tutorial when opened
   useEffect(() => {
     if (isOpen) {
       setCurrentStep(0);
-      setShowWelcome(true);
+    //   setShowWelcome(true);
     }
   }, [isOpen]);
 
@@ -159,14 +159,14 @@ const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ isOpen, onClo
   const handleNext = () => {
     if (currentStep < totalSteps - 1) {
       setCurrentStep(currentStep + 1);
-      setShowWelcome(false);
+    //   setShowWelcome(false);
     }
   };
 
   const handlePrev = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
-      setShowWelcome(false);
+    //   setShowWelcome(false);
     }
   };
 

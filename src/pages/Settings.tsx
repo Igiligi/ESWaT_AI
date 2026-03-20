@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { HelpCircle, LogOut, ChevronRight, Info, Shield, Camera, Calendar, MapPin, Bell, Moon, Globe, Users, Award, BookOpen, Star } from 'lucide-react';
+import { LogOut, ChevronRight, Info, Shield, Camera, Calendar, MapPin, Bell, Moon, Globe, Users, Award, BookOpen, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
 import InteractiveTutorial from '../components/InteractiveTutorial';
 
@@ -42,14 +42,14 @@ const Settings = () => {
           icon: <Users size={20} />, 
           label: 'Account Type', 
           description: user?.role === 'officer' ? 'ESWAMA Officer' : 'Resident User',
-          action: () => {},
+          action: undefined,
           color: '#128C7E'
         },
         { 
           icon: <Award size={20} />, 
           label: 'User ID', 
           description: user?.id || 'Not available',
-          action: () => {},
+          action: undefined,
           color: '#f97316'
         },
       ]
@@ -184,7 +184,11 @@ const Settings = () => {
                 <motion.div
                   key={itemIdx}
                   whileTap={{ scale: 0.98 }}
-                  onClick={item.action}
+                  onClick={() => {
+                    if (item.action) {
+                      item.action();
+                    }
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',

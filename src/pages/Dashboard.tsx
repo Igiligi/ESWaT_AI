@@ -358,15 +358,14 @@ const Dashboard = () => {
                   }}
                   // Add friendly names to tooltips
                   formatter={(value, name) => {
-                    const friendlyNames: Record<string, string> = {
-                      'Overflowing': '🔴 Overflowing',
-                      // 'OpenDump': '🟣 Open dump',
-                      '75% full': '🟠 75% full',
-                      'Half-full': '🟡 Half-full',
-                      'Empty': '🟢 Empty'
-                    };
-                    return [value, friendlyNames[name] || name];
-                  }}
+  const friendlyNames: Record<string, string> = {
+    'Overflowing': '🔴 Overflowing',
+    '75% full': '🟠 75% full',
+    'Half-full': '🟡 Half-full',
+    'Empty': '🟢 Empty'
+  };
+  return [value, friendlyNames[name || ''] || name || ''];
+}}
                 />
 
                 {/* Animated Bars - Rising from bottom */}
