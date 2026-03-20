@@ -1,6 +1,7 @@
 import React from 'react';
 import { CheckCircle, X, Map as MapIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface SuccessModalProps {
@@ -11,6 +12,7 @@ interface SuccessModalProps {
 
 const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, reportId }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   if (!isOpen) return null;
 
@@ -123,29 +125,32 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, reportId }
                 Close
               </button>
               
-              <button 
-                onClick={() => {
-                  onClose();
-                  navigate('/map');
-                }}
-                style={{
-                  flex: 1.5,
-                  padding: '0.875rem',
-                  borderRadius: '10px',
-                  backgroundColor: 'var(--primary)',
-                  color: 'white',
-                  border: 'none',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  boxShadow: '0 4px 6px -1px rgba(11, 94, 31, 0.2)'
-                }}
-              >
-                <MapIcon size={18} /> View on Map
-              </button>
+              {/* Only show View on Map button for officers */}
+              {user?.role === 'officer' && (
+                <button 
+                  onClick={() => {
+                    onClose();
+                    navigate('/map');
+                  }}
+                  style={{
+                    flex: 1.5,
+                    padding: '0.875rem',
+                    borderRadius: '10px',
+                    backgroundColor: 'var(--primary)',
+                    color: 'white',
+                    border: 'none',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    boxShadow: '0 4px 6px -1px rgba(11, 94, 31, 0.2)'
+                  }}
+                >
+                  <MapIcon size={18} /> View on Map
+                </button>
+              )}
             </div>
           </motion.div>
         </div>

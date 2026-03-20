@@ -214,6 +214,7 @@ const ReportForm = () => {
     }
   };
 
+  // FIXED: Daily limit reached screen - only shows map button for officers
   if (isSubmittedToday && !justSubmitted && !showModal) {
     return (
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ maxWidth: '600px', margin: '4rem auto', textAlign: 'center' }}>
@@ -223,9 +224,25 @@ const ReportForm = () => {
           <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', lineHeight: '1.6' }}>
             You've already submitted a report today. Thank you for helping keep Enugu clean!
           </p>
-          <button onClick={() => navigate('/map')} style={{ marginTop: '2rem', backgroundColor: 'var(--primary)', color: 'white', padding: '0.75rem 1.5rem', borderRadius: '10px', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
-            View Live Map
-          </button>
+          
+          {/* Only show map button for officers */}
+          {user?.role === 'officer' && (
+            <button 
+              onClick={() => navigate('/map')} 
+              style={{ 
+                marginTop: '2rem', 
+                backgroundColor: 'var(--primary)', 
+                color: 'white', 
+                padding: '0.75rem 1.5rem', 
+                borderRadius: '10px', 
+                fontWeight: 600, 
+                border: 'none', 
+                cursor: 'pointer' 
+              }}
+            >
+              View Live Map
+            </button>
+          )}
         </div>
       </motion.div>
     );
@@ -279,7 +296,7 @@ const ReportForm = () => {
 
           <div className="grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
             <div>
-              <label style={labelStyle}><MapPin size={16} /> Street or Landmark *</label>
+              <label style={labelStyle}><MapPin size={16} /> Street Name or Landmark *</label>
               <input required value={street} onChange={e => setStreet(e.target.value)} type="text" placeholder="e.g. Near Shoprite, Zik Avenue" style={inputStyle} />
             </div>
             <div>
@@ -306,16 +323,16 @@ const ReportForm = () => {
 
           <div className="grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
             <div>
-              <label style={labelStyle}><Layers size={16} /> Current Status *</label>
+              <label style={labelStyle}><Layers size={16} /> Current Waste Status *</label>
               <select required value={status} onChange={e => setStatus(e.target.value as BinStatus)} style={inputStyle}>
-                <option value="">Select Status</option>
+                <option value="">Select Waste Status</option>
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelStyle}><BarChart3 size={16} /> Estimated Volume *</label>
+              <label style={labelStyle}><BarChart3 size={16} /> Estimated Waste Volume *</label>
               <select required value={volume} onChange={e => setVolume(e.target.value)} style={inputStyle}>
-                <option value="">Select Volume</option>
+                <option value="">Select Waste Volume</option>
                 <option value="Low">Low (Few bags)</option>
                 <option value="Medium">Medium (Half full)</option>
                 <option value="High">High (Overflowing)</option>
@@ -326,14 +343,14 @@ const ReportForm = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div>
-              <label style={labelStyle}><Layers size={16} /> Bin Type *</label>
+              <label style={labelStyle}><Layers size={16} /> Waste Bin Type *</label>
               <select required value={type} onChange={e => setType(e.target.value as BinType)} style={inputStyle}>
                 <option value="">Select Type</option>
                 {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelStyle}><Clock size={16} /> How long at site? *</label>
+              <label style={labelStyle}><Clock size={16} /> How long is waste at site? *</label>
               <select required value={duration} onChange={e => setDuration(e.target.value)} style={inputStyle}>
                 <option value="">Select Duration</option>
                 <option value="New">Just today</option>
@@ -345,7 +362,7 @@ const ReportForm = () => {
           </div>
 
           <div>
-            <label style={labelStyle}><Camera size={16} /> Upload Photo Evidence *</label>
+            <label style={labelStyle}><Camera size={16} /> Upload Photo Evidence of the Waste Site *</label>
             <div style={{ position: 'relative' }}>
               <input
                 required

@@ -94,10 +94,9 @@ const LocationMarker = () => {
       onClick={handleLocate}
       style={{
         position: 'absolute',
-        bottom: '20px',        // Changed from top to bottom
-        left: '5px',          // Changed from right to left
+        bottom: '20px',
+        left: '5px',
         transform: 'translateY(-50%)',
-
         zIndex: 1000,
         backgroundColor: 'var(--primary)',
         color: 'white',
@@ -135,26 +134,61 @@ export default function MapDirectory() {
     return allReports.filter(r => r.Status !== 'Cleaned');
   }, [allReports]);
 
+  // FIXED: Filter logic with exact matching
   const filteredReports = React.useMemo(() => {
-    const list = reports.filter(r => {
-      const currentBinStatus = String(r['What is the current bin status?'] || "").toLowerCase().trim();
-      const statusMatch = statusFilter === 'all' || currentBinStatus.includes(statusFilter.toLowerCase());
-      const locationMatch = locationFilter === 'all' || r.Location === locationFilter;
+  const list = reports.filter(r => {
+    // Get status value
+    const currentBinStatus = String(r['What is the current bin status?'] || "").toLowerCase().trim();
+    
+    // Status filter - exact match
+    let statusMatch = true;
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'Overflowing') {
+        statusMatch = currentBinStatus === 'overflowing';
+      } else if (statusFilter === '75% full') {
+        statusMatch = currentBinStatus === '75% full';
+      } else if (statusFilter === 'Half-full') {
+        statusMatch = currentBinStatus === 'half-full';
+      } else if (statusFilter === 'Empty') {
+        statusMatch = currentBinStatus === 'empty';
+      } else {
+        statusMatch = false;
+      }
+    }
 
-      const category = categorizeBinType(r['Bin type'] as string);
-      const categoryMatch = categoryFilter === 'all' ||
-        (categoryFilter === 'waste' && category === 'Waste Bin Site') ||
-        (categoryFilter === 'dump' && category === 'Open Dump Site');
+    // Location filter
+    const locationMatch = locationFilter === 'all' || r.Location === locationFilter;
 
-      return statusMatch && locationMatch && categoryMatch;
-    });
+    // Category filter
+    const category = categorizeBinType(r['Bin type'] as string);
+    let categoryMatch = true;
+    if (categoryFilter === 'waste') {
+      categoryMatch = category === 'Waste Bin Site';
+    } else if (categoryFilter === 'dump') {
+      categoryMatch = category === 'Open Dump Site';
+    }
 
-    // Debug logs for project maintenance
-    const overflowingCount = list.filter(r => String(r['What is the current bin status?'] || "").toLowerCase().includes('overflowing')).length;
-    console.log(`Map View: Rendering ${list.length} reports (${overflowingCount} are Overflowing/Red)`);
+    return statusMatch && locationMatch && categoryMatch;
+  });
 
-    return list;
-  }, [reports, statusFilter, locationFilter, categoryFilter]);
+  // DEDUPLICATE: Keep only unique reports by ID
+  const uniqueMap = new Map();
+  list.forEach(report => {
+    if (report.id && !uniqueMap.has(report.id)) {
+      uniqueMap.set(report.id, report);
+    }
+  });
+  
+  const uniqueList = Array.from(uniqueMap.values());
+  
+  console.log(`Map View: ${list.length} reports match filters, ${uniqueList.length} after deduplication`);
+  return uniqueList;
+}, [reports, statusFilter, locationFilter, categoryFilter]);
+
+  // Debug effect to log filter changes
+  React.useEffect(() => {
+    console.log('🔍 Filters changed:', { statusFilter, locationFilter, categoryFilter });
+  }, [statusFilter, locationFilter, categoryFilter]);
 
   const plottedReports = React.useMemo(() => {
     return filteredReports.map((r, idx) => {
@@ -236,8 +270,6 @@ export default function MapDirectory() {
               borderRadius: '8px',
               border: '1px solid var(--border-color)',
               fontSize: '0.85rem',
-              // fontWeight: 700,
-              // borderLeft: '4px solid var(--primary)'
             }}
           >
             <option value="all">Show ALL Sites</option>
@@ -287,8 +319,8 @@ export default function MapDirectory() {
       <div style={{ flex: 1, borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-premium)', border: '1px solid var(--border-color)', position: 'relative' }}>
         {plottedReports.length === 0 && !loading && (
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 2000, backgroundColor: 'white', padding: '1rem 2rem', borderRadius: '12px', boxShadow: 'var(--shadow-premium)', textAlign: 'center' }}>
-            <p style={{ margin: 0, fontWeight: 700, color: 'var(--primary)' }}>No active reports found at this time.</p>
-            <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Try changing the filters or check your spreadsheet data.</p>
+            <p style={{ margin: 0, fontWeight: 700, color: 'var(--primary)' }}>No active reports match your filters</p>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Try changing filters or check your spreadsheet data.</p>
           </div>
         )}
         <MapContainer center={ENUGU_CENTER} zoom={13} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
@@ -419,9 +451,6 @@ export default function MapDirectory() {
               </Marker>
             );
           })}
-
-
-
 
           <LocationMarker />
         </MapContainer>

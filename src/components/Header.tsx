@@ -1,6 +1,6 @@
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { LogOut, Map, BarChart, FileText, AlertTriangle, List, Plus, Search, MoreVertical } from 'lucide-react';
+import { LogOut, Map, BarChart, FileText, AlertTriangle, List, Plus, Search, MoreVertical, HelpCircle } from 'lucide-react';
 import { useState } from 'react';
 
 const Header = () => {
@@ -14,6 +14,11 @@ const Header = () => {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleSettings = () => {
+    navigate('/settings');
+    setIsMenuOpen(false);
   };
 
   const isActive = (path: string) => location.pathname === path;
@@ -54,10 +59,8 @@ const Header = () => {
           </div>
           <div style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 800, alignSelf: 'flex-start', marginTop: '4px' }}>
             {user.role === 'officer' ? 'OFFICER MODE' : 'RESIDENT MODE'}
-
           </div>
         </div>
-
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <Search size={22} style={{ opacity: 0.9, cursor: 'pointer' }} className="desktop-only" />
@@ -88,14 +91,59 @@ const Header = () => {
                 top: '100%',
                 right: 0,
                 backgroundColor: 'white',
-                minWidth: '180px',
-                borderRadius: '4px',
-                boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
+                minWidth: '200px',
+                borderRadius: '12px',
+                boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
                 padding: '0.5rem 0',
                 zIndex: 1100,
-                marginTop: '0.5rem'
+                marginTop: '0.5rem',
+                border: '1px solid #f1f5f9'
               }}>
-                <button onClick={handleLogout} style={{ width: '100%', textAlign: 'left', padding: '0.75rem 1rem', color: '#1f2937', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                {/* Settings & Tutorial Button - NEW */}
+                <button 
+                  onClick={handleSettings}
+                  style={{ 
+                    width: '100%', 
+                    textAlign: 'left', 
+                    padding: '0.75rem 1rem', 
+                    color: '#1f2937', 
+                    fontSize: '0.9rem', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '0.75rem',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <HelpCircle size={18} color="#128C7E" /> Settings & Tutorial
+                </button>
+
+                <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '0.25rem 0' }} />
+
+                {/* Logout Button */}
+                <button 
+                  onClick={handleLogout} 
+                  style={{ 
+                    width: '100%', 
+                    textAlign: 'left', 
+                    padding: '0.75rem 1rem', 
+                    color: '#ef4444', 
+                    fontSize: '0.9rem', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '0.75rem',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
                   <LogOut size={18} /> Logout
                 </button>
               </div>

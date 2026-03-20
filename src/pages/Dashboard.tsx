@@ -51,15 +51,15 @@ const Dashboard = () => {
 
   const allLocations = [...new Set(reports.map(r => r.Location as string))];
   const barData = allLocations.map(loc => ({
-    name: loc,
-    Overflowing: reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Overflowing').length,
-    '75% full': reports.filter(r => r.Location === loc && r['What is the current bin status?'] === '75% full').length,
-    'Half-full': reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Half-full').length,
-    Empty: reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Empty').length,
-    OpenDump: reports.filter(r => r.Location === loc && (r['Bin type'] === 'Street dump (open area)')).length
-  }))
-    .sort((a, b) => (b.Overflowing + b.OpenDump) - (a.Overflowing + a.OpenDump))
-    .slice(0, 5);
+  name: loc,
+  Overflowing: reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Overflowing').length,
+  '75% full': reports.filter(r => r.Location === loc && r['What is the current bin status?'] === '75% full').length,
+  'Half-full': reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Half-full').length,
+  Empty: reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Empty').length
+  // OpenDump removed
+}))
+  .sort((a, b) => (b.Overflowing) - (a.Overflowing))
+  .slice(0, 5);
 
   const chartContainerStyle: React.CSSProperties = {
     padding: '1.5rem',
@@ -69,7 +69,16 @@ const Dashboard = () => {
   };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '6rem', paddingLeft: '1rem', paddingRight: '1rem' }}>
+    <div style={{ 
+      maxWidth: '1200px', 
+      margin: '0 auto', 
+      paddingBottom: '2rem', 
+      paddingLeft: '1rem', 
+      paddingRight: '1rem',
+      width: '100%',
+      overflowX: 'hidden',
+      boxSizing: 'border-box'
+    }}>
       <header style={{ padding: '1.5rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ color: 'var(--wa-dark)', margin: 0, fontSize: '1.75rem', fontWeight: 900, letterSpacing: '-0.5px' }}>ESWaT Analytics</h1>
@@ -86,7 +95,6 @@ const Dashboard = () => {
         <StatCard icon={<AlertTriangle size={22} />} label="Overflowing" value={stats.overflowing} highlight />
         <StatCard icon={<BarChart2 size={22} />} label="Open Dumps" value={stats.openDump} />
         <StatCard icon={<Trash2 size={22} />} label="Waste Bins" value={stats.wasteBin} />
-
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
@@ -101,9 +109,15 @@ const Dashboard = () => {
           style={chartContainerStyle}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--wa-dark)', fontWeight: 800 }}>
-              <BarChart2 size={18} /> Site Distribution
-            </h3>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--wa-dark)', fontWeight: 800 }}>
+                <BarChart2 size={18} /> Site Distribution
+              </h3>
+              {/* Simple description for layperson */}
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: '#667781' }}>
+                Shows how many are proper waste bins vs open dumps
+              </p>
+            </div>
             <span style={{ fontSize: '0.7rem', backgroundColor: '#f0f2f5', padding: '0.25rem 0.5rem', borderRadius: '4px', color: '#667781', fontWeight: 700 }}>LIVE</span>
           </div>
           <div style={{ height: '280px', width: '100%', position: 'relative' }}>
@@ -158,11 +172,9 @@ const Dashboard = () => {
                         outline: 'none'
                       }}
                     />
-
                   ))}
                 </Pie>
                 <RechartsTooltip content={() => null} cursor={false} />
-
                 <Legend iconType="circle" />
               </PieChart>
             </ResponsiveContainer>
@@ -179,11 +191,16 @@ const Dashboard = () => {
           style={chartContainerStyle}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--wa-dark)', fontWeight: 800 }}>
-              <TrendingUp size={18} /> Bin Status Overview
-            </h3>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--wa-dark)', fontWeight: 800 }}>
+                <TrendingUp size={18} /> Bin Status Overview
+              </h3>
+              {/* Simple description with emoji legend */}
+              {/* <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: '#667781' }}>
+                🔴 Overflowing | 🟠 75% full | 🟡 Half-full | 🟢 Empty
+              </p> */}
+            </div>
             <span style={{ fontSize: '0.7rem', backgroundColor: '#f0f2f5', padding: '0.25rem 0.5rem', borderRadius: '4px', color: '#667781', fontWeight: 700 }}>LIVE</span>
-
           </div>
           <div style={{ height: '280px', width: '100%', position: 'relative' }}>
             {/* Center Overlay */}
@@ -237,11 +254,9 @@ const Dashboard = () => {
                         outline: 'none'
                       }}
                     />
-
                   ))}
                 </Pie>
                 <RechartsTooltip content={() => null} cursor={false} />
-
                 <Legend iconType="circle" />
               </PieChart>
             </ResponsiveContainer>
@@ -249,8 +264,6 @@ const Dashboard = () => {
         </motion.div>
 
         {/* District Chart */}
-        {/* District Distribution Chart - Modern Minimal */}
-        {/* District Distribution Chart with Rising Bars */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -272,16 +285,22 @@ const Dashboard = () => {
             alignItems: 'center',
             marginBottom: '1.5rem'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <MapPin size={18} color="#075E54" />
-              <h3 style={{
-                margin: 0,
-                fontSize: '1rem',
-                fontWeight: 600,
-                color: '#1e293b'
-              }}>
-                Top Districts
-              </h3>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <MapPin size={18} color="#075E54" />
+                <h3 style={{
+                  margin: 0,
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  color: '#1e293b'
+                }}>
+                  Top Districts
+                </h3>
+              </div>
+              {/* Simple description for layperson */}
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: '#667781' }}>
+                Areas with the most waste problems (higher bars = more reports)
+              </p>
             </div>
             <span style={{
               fontSize: '0.7rem',
@@ -336,6 +355,17 @@ const Dashboard = () => {
                     padding: '8px 12px',
                     fontSize: '12px',
                     background: 'rgba(255,255,255,0.98)'
+                  }}
+                  // Add friendly names to tooltips
+                  formatter={(value, name) => {
+                    const friendlyNames: Record<string, string> = {
+                      'Overflowing': '🔴 Overflowing',
+                      // 'OpenDump': '🟣 Open dump',
+                      '75% full': '🟠 75% full',
+                      'Half-full': '🟡 Half-full',
+                      'Empty': '🟢 Empty'
+                    };
+                    return [value, friendlyNames[name] || name];
                   }}
                 />
 
@@ -411,7 +441,7 @@ const Dashboard = () => {
             borderTop: '1px solid #f1f5f9'
           }}>
             <LegendItem color="#ef4444" label="Overflow" />
-            <LegendItem color="#a855f7" label="Dump" />
+            {/* <LegendItem color="#a855f7" label="Dump" /> */}
             <LegendItem color="#f97316" label="75%" />
             <LegendItem color="#eab308" label="Half" />
             <LegendItem color="#22c55e" label="Empty" />
@@ -420,7 +450,7 @@ const Dashboard = () => {
       </div>
 
       {/* Hotspots List (WhatsApp Style) */}
-      <motion.div
+      {/* <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
@@ -465,7 +495,7 @@ const Dashboard = () => {
             ))
           )}
         </div>
-      </motion.div>
+      </motion.div> */}
     </div>
   );
 };
@@ -503,7 +533,7 @@ const StatCard = ({ icon, label, value, highlight = false }: { icon: React.React
 
 export default Dashboard;
 
-// Add this at the very end of your file, after export default Dashboard
+// LegendItem component
 const LegendItem = ({ color, label }: { color: string; label: string }) => (
   <div style={{
     display: 'flex',

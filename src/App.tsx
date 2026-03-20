@@ -12,6 +12,7 @@ import MapDirectory from './pages/MapDirectory';
 import ReportForm from './pages/ReportForm';
 import Hotspots from './pages/Hotspots';
 import CollectionLog from './pages/CollectionLog';
+import Settings from './pages/Settings';
 
 // Redirect Component based on auth role
 const RootRedirect = () => {
@@ -43,6 +44,7 @@ function AppRoutes() {
             <Route path="/map" element={<ProtectedRoute allowedRoles={['officer']}><MapDirectory /></ProtectedRoute>} />
             <Route path="/hotspots" element={<ProtectedRoute allowedRoles={['officer']}><Hotspots /></ProtectedRoute>} />
             <Route path="/collection-log" element={<ProtectedRoute allowedRoles={['officer']}><CollectionLog /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute allowedRoles={['officer', 'resident']}><Settings /></ProtectedRoute>} /> {/* ADD THIS LINE */}
 
             {/* Catch-all redirect */}
             <Route path="*" element={<RootRedirect />} />
