@@ -87,6 +87,12 @@ const ReportForm = () => {
   const [isSubmittedToday, setIsSubmittedToday] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
 
+  // Added this state variables for automatic location/coordinate tracker
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
   // Check for daily submission limit
   useEffect(() => {
     if (user) {
@@ -142,6 +148,11 @@ const ReportForm = () => {
       const compressed = await compressImage(file);
       setBase64Image(compressed);
 
+      // After setting base64Image, automatically get location if coordinates are empty (part of new feature)
+      if (!latitude && !longitude) {
+       getCurrentLocation();
+      }
+
       // Success message
       toast.success('Image ready!', { id: 'compress' });
     } catch (error) {
@@ -151,6 +162,52 @@ const ReportForm = () => {
       setIsCompressing(false);
     }
   };
+
+  // Part of the new feature: Automatic location capture using Geolocation API
+  const getCurrentLocation = () => {
+  setIsGettingLocation(true);
+  setLocationError(null);
+  
+  if (!navigator.geolocation) {
+    setLocationError('Geolocation is not supported by your browser');
+    setIsGettingLocation(false);
+    return;
+  }
+  
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      setLatitude(position.coords.latitude);
+      setLongitude(position.coords.longitude);
+      setIsGettingLocation(false);
+      toast.success('📍 Location captured automatically!');
+    },
+    (error) => {
+      console.error('Geolocation error:', error);
+      let errorMsg = 'Could not get location. ';
+      switch(error.code) {
+        case error.PERMISSION_DENIED:
+          errorMsg += 'Please allow location access in your browser.';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          errorMsg += 'Location information unavailable.';
+          break;
+        case error.TIMEOUT:
+          errorMsg += 'Location request timed out.';
+          break;
+        default:
+          errorMsg += 'Please enter coordinates manually.';
+      }
+      setLocationError(errorMsg);
+      toast.error(errorMsg);
+      setIsGettingLocation(false);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    }
+  );
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,7 +246,9 @@ const ReportForm = () => {
       'How long has this site been used for dumping?': duration,
       id: reportId,
       // @ts-ignore - base64Image is used by the Apps Script but not in our interface
-      base64Image: base64Image
+      base64Image: base64Image,
+      latitude: latitude,  // Add this
+      longitude: longitude  // Add this
     };
 
     // Show uploading toast
@@ -317,9 +376,104 @@ const ReportForm = () => {
           )}
 
           <div>
-            <label style={labelStyle}><MapPin size={16} /> GPS Coordinates (Optional)</label>
-            <input value={gps} onChange={e => setGps(e.target.value)} type="text" placeholder="e.g. 6.4455, 7.5534 (Leave empty if unknown)" style={inputStyle} />
-          </div>
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+    <label style={{ ...labelStyle, marginBottom: 0 }}><MapPin size={16} /> GPS Coordinates (Optional)</label>
+    <button
+      type="button"
+      onClick={getCurrentLocation}
+      disabled={isGettingLocation}
+      style={{
+        fontSize: '0.7rem',
+        padding: '0.25rem 0.75rem',
+        borderRadius: '20px',
+        border: '1px solid var(--border-color)',
+        background: 'var(--primary)',
+        color: 'white',
+        fontWeight: 500,
+        cursor: isGettingLocation ? 'not-allowed' : 'pointer',
+        opacity: isGettingLocation ? 0.6 : 1
+      }}
+    >
+      {isGettingLocation ? '📍 Locating...' : '📍 Use My Location'}
+    </button>
+  </div>
+  <input 
+    value={gps} 
+    onChange={e => setGps(e.target.value)} 
+    type="text" 
+    placeholder="e.g. 6.4455, 7.5534 (or auto-capture below)" 
+    style={inputStyle} 
+  />
+</div>
+
+{/* Location Status Indicator */}
+{isGettingLocation && (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', marginTop: '0.5rem' }}>
+    <Loader2 size={16} className="spin" />
+    <span style={{ fontSize: '0.75rem' }}>Getting your location...</span>
+  </div>
+)}
+
+{latitude && longitude && (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981' }}>
+      <MapPin size={16} />
+      <span style={{ fontSize: '0.75rem' }}>
+        📍 Auto-captured: {latitude.toFixed(6)}, {longitude.toFixed(6)}
+      </span>
+    </div>
+    <button
+      type="button"
+      onClick={() => {
+        setGps(`${latitude}, ${longitude}`);
+        toast.success('Coordinates copied to field!');
+      }}
+      style={{
+        fontSize: '0.65rem',
+        padding: '0.2rem 0.6rem',
+        borderRadius: '12px',
+        border: '1px solid var(--border-color)',
+        background: '#f0f2f5',
+        cursor: 'pointer'
+      }}
+    >
+      📋 Copy to Field
+    </button>
+  </div>
+)}
+
+{locationError && !latitude && (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444', marginTop: '0.5rem' }}>
+    <AlertTriangle size={16} />
+    <span style={{ fontSize: '0.75rem' }}>{locationError}</span>
+  </div>
+)}
+
+          {/* Location Status Indicator */}
+<div style={{ marginBottom: '1rem' }}>
+  {isGettingLocation && (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b' }}>
+      <Loader2 size={16} className="spin" />
+      <span style={{ fontSize: '0.75rem' }}>Getting your location...</span>
+    </div>
+  )}
+  
+  {latitude && longitude && (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981' }}>
+      <MapPin size={16} />
+      <span style={{ fontSize: '0.75rem' }}>
+        📍 Location captured: {latitude.toFixed(6)}, {longitude.toFixed(6)}
+      </span>
+    </div>
+  )}
+  
+  {locationError && !latitude && (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444' }}>
+      <AlertTriangle size={16} />
+      <span style={{ fontSize: '0.75rem' }}>{locationError}</span>
+    </div>
+  )}
+</div>
 
           <div className="grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
             <div>
