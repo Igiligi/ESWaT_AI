@@ -7,6 +7,7 @@ import SuccessModal from '../components/SuccessModal';
 import { toast } from 'react-hot-toast';
 import { FileText, MapPin, Camera, MessageSquare, Send, Layers, Loader2, User, Phone, Clock, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { AlertTriangle } from 'lucide-react';
 
 const LOCATIONS: string[] = [
   'Abakpa', 'Independence Layout', 'Emene', 'New Artisan', '9th Mile', 'Zik Avenue', 'Ogui', 'GRA', 'Other'
