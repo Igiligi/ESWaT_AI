@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { FileText, MapPin, Camera, MessageSquare, Send, Layers, Loader2, User, Phone, Clock, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AlertTriangle } from 'lucide-react';
+import * as tf from '@tensorflow/tfjs';
 
 const LOCATIONS: string[] = [
   'Abakpa', 'Independence Layout', 'Emene', 'New Artisan', '9th Mile', 'Zik Avenue', 'Ogui', 'GRA', 'Other'
@@ -32,7 +33,6 @@ const compressImage = (file: File): Promise<string> => {
         let width = img.width;
         let height = img.height;
 
-        // Max dimensions
         const MAX_WIDTH = 1024;
         const MAX_HEIGHT = 768;
 
@@ -53,7 +53,6 @@ const compressImage = (file: File): Promise<string> => {
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
 
-        // Compress to JPEG at 70% quality
         const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
         resolve(compressedDataUrl);
       };
@@ -68,6 +67,7 @@ const ReportForm = () => {
   const { addReport, loading } = useData();
   const { user } = useAuth();
 
+  // Form state
   const [yourName, setYourName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [location, setLocation] = useState('');
@@ -83,16 +83,88 @@ const ReportForm = () => {
   const [photoName, setPhotoName] = useState('');
   const [isCompressing, setIsCompressing] = useState(false);
 
+  // Modal and submission state
   const [showModal, setShowModal] = useState(false);
   const [lastReportId, setLastReportId] = useState('');
   const [isSubmittedToday, setIsSubmittedToday] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
 
-  // Added this state variables for automatic location/coordinate tracker
+  // Location state
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  // AI state
+  const [aiModel, setAiModel] = useState<tf.LayersModel | null>(null);
+  const [aiPredicting, setAiPredicting] = useState(false);   
+  const [aiPrediction, setAiPrediction] = useState<{ wasteType: string; confidence: number } | null>(null);
+  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
+
+  // Load AI model when component mounts
+  useEffect(() => {
+    const loadModel = async () => {
+      try {
+        console.log('Loading AI model from /tfjs_eswat_model/model.json...');
+        const model = await tf.loadLayersModel('/tfjs_eswat_model/model.json');
+        setAiModel(model);
+        console.log('✅ AI model loaded successfully');
+        
+        // Optional: Warm up the model
+        const dummyInput = tf.zeros([1, 224, 224, 3]);
+        await model.predict(dummyInput).data();
+        dummyInput.dispose();
+        console.log('✅ Model warmed up');
+      } catch (error: any) {
+        console.error('Failed to load AI model:', error);
+        setModelLoadError(error.message || 'Model failed to load');
+      }
+    };
+    loadModel();
+  }, []);
+
+  // Function to classify waste type from image
+  const classifyWasteImage = async (imageUrl: string) => {
+    if (!aiModel) {
+      console.warn('Model not loaded yet');
+      return null;
+    }
+    
+    setAiPredicting(true);
+    
+    try {
+      const img = new Image();
+      img.src = imageUrl;
+      await img.decode();
+      
+      const tensor = tf.browser.fromPixels(img)
+        .resizeNearestNeighbor([224, 224])
+        .toFloat()
+        .div(tf.scalar(255))
+        .expandDims(0);
+      
+      const predictions = await aiModel.predict(tensor) as tf.Tensor;
+      const data = await predictions.data();
+      const classNames = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash'];
+      const maxIndex = data.indexOf(Math.max(...data));
+      const confidence = data[maxIndex] * 100;
+      
+      setAiPrediction({
+        wasteType: classNames[maxIndex],
+        confidence: confidence
+      });
+      
+      tensor.dispose();
+      predictions.dispose();
+      return { wasteType: classNames[maxIndex], confidence };
+      
+    } catch (error) {
+      console.error('Prediction failed:', error);
+      return null;
+    } finally {
+      setAiPredicting(false);
+    }
+  };
 
   // Check for daily submission limit
   useEffect(() => {
@@ -126,13 +198,13 @@ const ReportForm = () => {
     setVolume('');
     setType('');
     setDuration('');
+    setAiPrediction(null);
   };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check file size (max 10MB original)
     if (file.size > 10 * 1024 * 1024) {
       toast.error('File size too large. Please select an image under 10MB.');
       return;
@@ -140,21 +212,20 @@ const ReportForm = () => {
 
     setPhotoName(file.name);
     setIsCompressing(true);
+    setAiPrediction(null);
 
     try {
-      // Show compression toast
       toast.loading('Compressing image...', { id: 'compress' });
-
-      // Compress the image
       const compressed = await compressImage(file);
       setBase64Image(compressed);
+      
+      // Run AI prediction after image is ready
+      await classifyWasteImage(compressed);
 
-      // After setting base64Image, automatically get location if coordinates are empty (part of new feature)
       if (!latitude && !longitude) {
-       getCurrentLocation();
+        getCurrentLocation();
       }
 
-      // Success message
       toast.success('Image ready!', { id: 'compress' });
     } catch (error) {
       console.error('Compression failed:', error);
@@ -164,51 +235,50 @@ const ReportForm = () => {
     }
   };
 
-  // Part of the new feature: Automatic location capture using Geolocation API
   const getCurrentLocation = () => {
-  setIsGettingLocation(true);
-  setLocationError(null);
-  
-  if (!navigator.geolocation) {
-    setLocationError('Geolocation is not supported by your browser');
-    setIsGettingLocation(false);
-    return;
-  }
-  
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      setLatitude(position.coords.latitude);
-      setLongitude(position.coords.longitude);
+    setIsGettingLocation(true);
+    setLocationError(null);
+    
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser');
       setIsGettingLocation(false);
-      toast.success('📍 Location captured automatically!');
-    },
-    (error) => {
-      console.error('Geolocation error:', error);
-      let errorMsg = 'Could not get location. ';
-      switch(error.code) {
-        case error.PERMISSION_DENIED:
-          errorMsg += 'Please allow location access in your browser.';
-          break;
-        case error.POSITION_UNAVAILABLE:
-          errorMsg += 'Location information unavailable.';
-          break;
-        case error.TIMEOUT:
-          errorMsg += 'Location request timed out.';
-          break;
-        default:
-          errorMsg += 'Please enter coordinates manually.';
-      }
-      setLocationError(errorMsg);
-      toast.error(errorMsg);
-      setIsGettingLocation(false);
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0
+      return;
     }
-  );
-};
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLatitude(position.coords.latitude);
+        setLongitude(position.coords.longitude);
+        setIsGettingLocation(false);
+        toast.success('📍 Location captured automatically!');
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        let errorMsg = 'Could not get location. ';
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMsg += 'Please allow location access in your browser.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMsg += 'Location information unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorMsg += 'Location request timed out.';
+            break;
+          default:
+            errorMsg += 'Please enter coordinates manually.';
+        }
+        setLocationError(errorMsg);
+        toast.error(errorMsg);
+        setIsGettingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,7 +300,6 @@ const ReportForm = () => {
 
     const reportId = generateReportId();
 
-    // Using EXACT column names for Report object to match Google Sheet
     const newReport: Report = {
       Timestamp: new Date().toISOString(),
       'Email Address': user?.email || '',
@@ -242,17 +311,16 @@ const ReportForm = () => {
       'What is the current bin status?': status as BinStatus,
       'Estimated waste volume': volume,
       'Bin type': type as BinType,
-      'Upload a photo of the bin or dump area': '', // Will be filled by backend
+      'Upload a photo of the bin or dump area': '',
       'WhatsApp number': whatsapp,
       'How long has this site been used for dumping?': duration,
       id: reportId,
-      // @ts-ignore - base64Image is used by the Apps Script but not in our interface
+      // @ts-ignore
       base64Image: base64Image,
-      latitude: latitude,  // Add this
-      longitude: longitude  // Add this
+      latitude: latitude,
+      longitude: longitude
     };
 
-    // Show uploading toast
     toast.loading('Submitting report (this may take 20-30 seconds)...', { id: 'submit' });
 
     const success = await addReport(newReport);
@@ -274,7 +342,7 @@ const ReportForm = () => {
     }
   };
 
-  // FIXED: Daily limit reached screen - only shows map button for officers
+  // Daily limit reached screen
   if (isSubmittedToday && !justSubmitted && !showModal) {
     return (
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ maxWidth: '600px', margin: '4rem auto', textAlign: 'center' }}>
@@ -285,7 +353,6 @@ const ReportForm = () => {
             You've already submitted a report today. Thank you for helping keep Enugu clean!
           </p>
           
-          {/* Only show map button for officers */}
           {user?.role === 'officer' && (
             <button 
               onClick={() => navigate('/map')} 
@@ -353,7 +420,6 @@ const ReportForm = () => {
             </div>
           </div>
 
-
           <div className="grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
             <div>
               <label style={labelStyle}><MapPin size={16} /> Street Name or Landmark *</label>
@@ -368,7 +434,6 @@ const ReportForm = () => {
             </div>
           </div>
 
-
           {location === 'Other' && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
               <label style={labelStyle}><MapPin size={16} /> Specify Location</label>
@@ -377,104 +442,77 @@ const ReportForm = () => {
           )}
 
           <div>
-  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-    <label style={{ ...labelStyle, marginBottom: 0 }}><MapPin size={16} /> GPS Coordinates (Optional)</label>
-    <button
-      type="button"
-      onClick={getCurrentLocation}
-      disabled={isGettingLocation}
-      style={{
-        fontSize: '0.7rem',
-        padding: '0.25rem 0.75rem',
-        borderRadius: '20px',
-        border: '1px solid var(--border-color)',
-        background: 'var(--primary)',
-        color: 'white',
-        fontWeight: 500,
-        cursor: isGettingLocation ? 'not-allowed' : 'pointer',
-        opacity: isGettingLocation ? 0.6 : 1
-      }}
-    >
-      {isGettingLocation ? '📍 Locating...' : '📍 Use My Location'}
-    </button>
-  </div>
-  <input 
-    value={gps} 
-    onChange={e => setGps(e.target.value)} 
-    type="text" 
-    placeholder="e.g. 6.4455, 7.5534 (or auto-capture below)" 
-    style={inputStyle} 
-  />
-</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <label style={{ ...labelStyle, marginBottom: 0 }}><MapPin size={16} /> GPS Coordinates (Optional)</label>
+              <button
+                type="button"
+                onClick={getCurrentLocation}
+                disabled={isGettingLocation}
+                style={{
+                  fontSize: '0.7rem',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '20px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--primary)',
+                  color: 'white',
+                  fontWeight: 500,
+                  cursor: isGettingLocation ? 'not-allowed' : 'pointer',
+                  opacity: isGettingLocation ? 0.6 : 1
+                }}
+              >
+                {isGettingLocation ? '📍 Locating...' : '📍 Use My Location'}
+              </button>
+            </div>
+            <input 
+              value={gps} 
+              onChange={e => setGps(e.target.value)} 
+              type="text" 
+              placeholder="e.g. 6.4455, 7.5534 (or auto-capture below)" 
+              style={inputStyle} 
+            />
+          </div>
 
-{/* Location Status Indicator */}
-{isGettingLocation && (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', marginTop: '0.5rem' }}>
-    <Loader2 size={16} className="spin" />
-    <span style={{ fontSize: '0.75rem' }}>Getting your location...</span>
-  </div>
-)}
+          {isGettingLocation && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', marginTop: '0.5rem' }}>
+              <Loader2 size={16} className="spin" />
+              <span style={{ fontSize: '0.75rem' }}>Getting your location...</span>
+            </div>
+          )}
 
-{latitude && longitude && (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981' }}>
-      <MapPin size={16} />
-      <span style={{ fontSize: '0.75rem' }}>
-        📍 Auto-captured: {latitude.toFixed(6)}, {longitude.toFixed(6)}
-      </span>
-    </div>
-    <button
-      type="button"
-      onClick={() => {
-        setGps(`${latitude}, ${longitude}`);
-        toast.success('Coordinates copied to field!');
-      }}
-      style={{
-        fontSize: '0.65rem',
-        padding: '0.2rem 0.6rem',
-        borderRadius: '12px',
-        border: '1px solid var(--border-color)',
-        background: '#f0f2f5',
-        cursor: 'pointer'
-      }}
-    >
-      📋 Copy to Field
-    </button>
-  </div>
-)}
+          {latitude && longitude && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981' }}>
+                <MapPin size={16} />
+                <span style={{ fontSize: '0.75rem' }}>
+                  📍 Auto-captured: {latitude.toFixed(6)}, {longitude.toFixed(6)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setGps(`${latitude}, ${longitude}`);
+                  toast.success('Coordinates copied to field!');
+                }}
+                style={{
+                  fontSize: '0.65rem',
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '12px',
+                  border: '1px solid var(--border-color)',
+                  background: '#f0f2f5',
+                  cursor: 'pointer'
+                }}
+              >
+                📋 Copy to Field
+              </button>
+            </div>
+          )}
 
-{locationError && !latitude && (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444', marginTop: '0.5rem' }}>
-    <AlertTriangle size={16} />
-    <span style={{ fontSize: '0.75rem' }}>{locationError}</span>
-  </div>
-)}
-
-          {/* Location Status Indicator */}
-<div style={{ marginBottom: '1rem' }}>
-  {isGettingLocation && (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b' }}>
-      <Loader2 size={16} className="spin" />
-      <span style={{ fontSize: '0.75rem' }}>Getting your location...</span>
-    </div>
-  )}
-  
-  {latitude && longitude && (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981' }}>
-      <MapPin size={16} />
-      <span style={{ fontSize: '0.75rem' }}>
-        📍 Location captured: {latitude.toFixed(6)}, {longitude.toFixed(6)}
-      </span>
-    </div>
-  )}
-  
-  {locationError && !latitude && (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444' }}>
-      <AlertTriangle size={16} />
-      <span style={{ fontSize: '0.75rem' }}>{locationError}</span>
-    </div>
-  )}
-</div>
+          {locationError && !latitude && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444', marginTop: '0.5rem' }}>
+              <AlertTriangle size={16} />
+              <span style={{ fontSize: '0.75rem' }}>{locationError}</span>
+            </div>
+          )}
 
           <div className="grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
             <div>
@@ -494,7 +532,6 @@ const ReportForm = () => {
               </select>
             </div>
           </div>
-
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div>
@@ -516,6 +553,7 @@ const ReportForm = () => {
             </div>
           </div>
 
+          {/* Photo Upload Section */}
           <div>
             <label style={labelStyle}><Camera size={16} /> Upload Photo Evidence of the Waste Site *</label>
             <div style={{ position: 'relative' }}>
@@ -551,6 +589,8 @@ const ReportForm = () => {
                 {isCompressing ? 'Compressing image...' : (photoName ? `Selected: ${photoName}` : 'Tap to take or choose photo')}
               </div>
             </div>
+            
+            {/* Image Preview */}
             {base64Image && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -559,6 +599,46 @@ const ReportForm = () => {
               >
                 <img src={base64Image} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </motion.div>
+            )}
+            
+            {/* AI Prediction Display */}
+            {aiPredicting && (
+              <div style={{
+                marginTop: '0.75rem',
+                padding: '0.75rem',
+                backgroundColor: '#fff3e0',
+                borderRadius: '8px',
+                textAlign: 'center'
+              }}>
+                <Loader2 size={16} className="spin" style={{ display: 'inline-block', marginRight: '8px' }} />
+                <span>🤖 Analyzing waste image...</span>
+              </div>
+            )}
+            
+            {aiPrediction && !aiPredicting && (
+              <div style={{
+                marginTop: '0.75rem',
+                padding: '0.75rem',
+                backgroundColor: '#e8f5e9',
+                borderRadius: '8px',
+                textAlign: 'center'
+              }}>
+                <strong>🤖 AI Prediction:</strong> {aiPrediction.wasteType} 
+                ({aiPrediction.confidence.toFixed(1)}% confidence)
+              </div>
+            )}
+            
+            {modelLoadError && !aiModel && (
+              <div style={{
+                marginTop: '0.75rem',
+                padding: '0.75rem',
+                backgroundColor: '#ffebee',
+                borderRadius: '8px',
+                textAlign: 'center',
+                color: '#c62828'
+              }}>
+                ⚠️ AI model not loaded. Please refresh the page.
+              </div>
             )}
           </div>
 
