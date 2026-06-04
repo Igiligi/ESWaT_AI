@@ -1,13 +1,12 @@
 import * as React from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { useData, categorizeBinType } from '../contexts/DataContext';
-
-
 import L from 'leaflet';
 import { MapPin, Target, ChevronDown, ChevronUp, Layers, CheckCircle2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import 'leaflet-defaulticon-compatibility';
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
+import * as tf from '@tensorflow/tfjs';
 
 // Enugu Coordinates
 const ENUGU_CENTER: [number, number] = [6.4584, 7.5464];
@@ -51,7 +50,6 @@ const MapPhoto = ({ url }: { url: string }) => {
   );
 };
 
-
 const getStatusColor = (status: any = "") => {
   const s = String(status || "").toLowerCase().trim();
   if (s.includes('overflowing')) return '#ef4444';
@@ -75,7 +73,6 @@ const createCustomIcon = (status: any) => {
     popupAnchor: [0, -7]
   });
 };
-
 
 // Component to handle Geolocation view
 const LocationMarker = () => {
@@ -123,79 +120,158 @@ export default function MapDirectory() {
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
   const [showLegend, setShowLegend] = React.useState(false);
 
-
   // Filter states
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
   const [locationFilter, setLocationFilter] = React.useState<string>('all');
   const [categoryFilter, setCategoryFilter] = React.useState<string>('all');
 
-  // Filter out cleaned reports (removed from view)
+  // AI state
+  const [aiModel, setAiModel] = React.useState<tf.GraphModel | null>(null);
+  const [predictingId, setPredictingId] = React.useState<string | null>(null);
+  const modelLoadAttempted = React.useRef(false);
+
+  // Load AI model once
+  React.useEffect(() => {
+    if (modelLoadAttempted.current) return;
+    modelLoadAttempted.current = true;
+
+    const loadModel = async () => {
+      try {
+        console.log('Loading AI model for map...');
+        const model = await tf.loadGraphModel('/tfjs_eswat_model/model.json');
+        setAiModel(model);
+        console.log('✅ AI model loaded for map');
+      } catch (error) {
+        console.error('Failed to load AI model:', error);
+      }
+    };
+    loadModel();
+  }, []);
+
+  // Classify waste image function
+ const classifyWasteImage = async (imageUrl: string, reportId: string) => {
+  if (!aiModel) {
+    toast.error('AI model not loaded yet');
+    return null;
+  }
+
+  setPredictingId(reportId);
+
+  try {
+    // Convert Google Drive URL to direct image URL if needed
+    let directImageUrl = imageUrl;
+    
+    // Handle Google Drive links
+    if (imageUrl.includes('drive.google.com')) {
+      // Extract file ID from Google Drive URL
+      const fileIdMatch = imageUrl.match(/[-\w]{25,}/);
+      if (fileIdMatch) {
+        directImageUrl = `https://drive.google.com/uc?export=view&id=${fileIdMatch[0]}`;
+      }
+    }
+    
+    // Handle Google user content links
+    if (imageUrl.includes('googleusercontent.com')) {
+      directImageUrl = imageUrl;
+    }
+
+    console.log('Loading image from:', directImageUrl);
+    
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    
+    // Wait for image to load
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = directImageUrl;
+    });
+    
+    // Verify image is valid
+    if (img.width === 0 || img.height === 0) {
+      throw new Error('Invalid image dimensions');
+    }
+    
+    const tensor = tf.browser.fromPixels(img)
+      .resizeNearestNeighbor([224, 224])
+      .toFloat()
+      .div(tf.scalar(255))
+      .expandDims(0);
+    
+    const predictions = await aiModel.predict(tensor) as tf.Tensor;
+    const data = await predictions.data();
+    const classNames = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash'];
+    const maxIndex = data.indexOf(Math.max(...data));
+    const confidence = data[maxIndex] * 100;
+    
+    tensor.dispose();
+    predictions.dispose();
+    
+    const result = { wasteType: classNames[maxIndex], confidence };
+    toast.success(`🤖 AI predicts: ${result.wasteType} (${result.confidence.toFixed(1)}%)`);
+    return result;
+    
+  } catch (error) {
+    console.error('Prediction failed:', error);
+    toast.error('Could not analyze image. The photo may not be accessible.');
+    return null;
+  } finally {
+    setPredictingId(null);
+  }
+};
+  // Filter out cleaned reports
   const reports = React.useMemo(() => {
     return allReports.filter(r => r.Status !== 'Cleaned');
   }, [allReports]);
 
-  // FIXED: Filter logic with exact matching
+  // Filter logic
   const filteredReports = React.useMemo(() => {
-  const list = reports.filter(r => {
-    // Get status value
-    const currentBinStatus = String(r['What is the current bin status?'] || "").toLowerCase().trim();
-    
-    // Status filter - exact match
-    let statusMatch = true;
-    if (statusFilter !== 'all') {
-      if (statusFilter === 'Overflowing') {
-        statusMatch = currentBinStatus === 'overflowing';
-      } else if (statusFilter === '75% full') {
-        statusMatch = currentBinStatus === '75% full';
-      } else if (statusFilter === 'Half-full') {
-        statusMatch = currentBinStatus === 'half-full';
-      } else if (statusFilter === 'Empty') {
-        statusMatch = currentBinStatus === 'empty';
-      } else {
-        statusMatch = false;
+    const list = reports.filter(r => {
+      const currentBinStatus = String(r['What is the current bin status?'] || "").toLowerCase().trim();
+      
+      let statusMatch = true;
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'Overflowing') {
+          statusMatch = currentBinStatus === 'overflowing';
+        } else if (statusFilter === '75% full') {
+          statusMatch = currentBinStatus === '75% full';
+        } else if (statusFilter === 'Half-full') {
+          statusMatch = currentBinStatus === 'half-full';
+        } else if (statusFilter === 'Empty') {
+          statusMatch = currentBinStatus === 'empty';
+        } else {
+          statusMatch = false;
+        }
       }
-    }
 
-    // Location filter
-    const locationMatch = locationFilter === 'all' || r.Location === locationFilter;
+      const locationMatch = locationFilter === 'all' || r.Location === locationFilter;
+      const category = categorizeBinType(r['Bin type'] as string);
+      let categoryMatch = true;
+      if (categoryFilter === 'waste') {
+        categoryMatch = category === 'Waste Bin Site';
+      } else if (categoryFilter === 'dump') {
+        categoryMatch = category === 'Open Dump Site';
+      }
 
-    // Category filter
-    const category = categorizeBinType(r['Bin type'] as string);
-    let categoryMatch = true;
-    if (categoryFilter === 'waste') {
-      categoryMatch = category === 'Waste Bin Site';
-    } else if (categoryFilter === 'dump') {
-      categoryMatch = category === 'Open Dump Site';
-    }
+      return statusMatch && locationMatch && categoryMatch;
+    });
 
-    return statusMatch && locationMatch && categoryMatch;
-  });
+    const uniqueMap = new Map();
+    list.forEach(report => {
+      if (report.id && !uniqueMap.has(report.id)) {
+        uniqueMap.set(report.id, report);
+      }
+    });
+    
+    return Array.from(uniqueMap.values());
+  }, [reports, statusFilter, locationFilter, categoryFilter]);
 
-  // DEDUPLICATE: Keep only unique reports by ID
-  const uniqueMap = new Map();
-  list.forEach(report => {
-    if (report.id && !uniqueMap.has(report.id)) {
-      uniqueMap.set(report.id, report);
-    }
-  });
-  
-  const uniqueList = Array.from(uniqueMap.values());
-  
-  console.log(`Map View: ${list.length} reports match filters, ${uniqueList.length} after deduplication`);
-  return uniqueList;
-}, [reports, statusFilter, locationFilter, categoryFilter]);
-
-  // Debug effect to log filter changes
-  React.useEffect(() => {
-    console.log('🔍 Filters changed:', { statusFilter, locationFilter, categoryFilter });
-  }, [statusFilter, locationFilter, categoryFilter]);
-
+  // Generate positions for markers
   const plottedReports = React.useMemo(() => {
     return filteredReports.map((r, idx) => {
       const area = r.Location as string;
       const landmark = r['Street Name or Landmark'] || "";
 
-      // Area-based coordinates + seeded jitter
       const areaCoords: Record<string, [number, number]> = {
         'Abakpa': [6.4912, 7.5255],
         'Independence Layout': [6.4328, 7.5144],
@@ -208,27 +284,18 @@ export default function MapDirectory() {
       };
 
       const basePos = areaCoords[area] || ENUGU_CENTER;
-
       const seedText = landmark + (r.id || r.Timestamp || "");
       const hash = seedText.split("").reduce((a: number, b: string) => { 
-  a = ((a << 5) - a) + b.charCodeAt(0); 
-  return a & a; 
-}, 0);
+        a = ((a << 5) - a) + b.charCodeAt(0); 
+        return a & a; 
+      }, 0);
       const jitterLat = ((Math.abs(hash) % 200) / 200 - 0.5) * 0.015;
       const jitterLng = ((Math.abs(hash * 31) % 200) / 200 - 0.5) * 0.015;
-
       const position: [number, number] = [basePos[0] + jitterLat, basePos[1] + jitterLng];
 
-      return {
-        ...r,
-        position,
-        tempId: r.id || `map-marker-${idx}-${r.Timestamp}`
-      };
+      return { ...r, position, tempId: r.id || `map-marker-${idx}-${r.Timestamp}` };
     });
   }, [filteredReports]);
-
-
-  console.log(`Map: Plotting ${plottedReports.length} markers out of ${reports.length} total reports.`);
 
   const handleMarkCollected = async (id: string) => {
     if (!id) return;
@@ -246,16 +313,10 @@ export default function MapDirectory() {
         </div>
 
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', width: '100%', maxWidth: '100%' }} className="map-filters">
-
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            style={{
-              padding: '0.5rem',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              fontSize: '0.85rem'
-            }}
+            style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}
           >
             <option value="all">All Statuses</option>
             <option value="Overflowing">Overflowing Only</option>
@@ -264,22 +325,15 @@ export default function MapDirectory() {
             <option value="Empty">Clean/Empty</option>
           </select>
 
-
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            style={{
-              padding: '0.5rem',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              fontSize: '0.85rem',
-            }}
+            style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}
           >
             <option value="all">Show ALL Sites</option>
             <option value="waste">Show Only Waste Bins</option>
             <option value="dump">Show Only Open Dumps</option>
           </select>
-
 
           <div style={{ position: 'relative', flex: '1 1 150px' }}>
             <input
@@ -289,7 +343,6 @@ export default function MapDirectory() {
               placeholder="Search Location..."
               style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem', width: '100%' }}
             />
-
             <datalist id="location-list">
               <option value="all">All Locations</option>
               {[...new Set(reports.map(r => r.Location as string))].map(loc => (
@@ -297,7 +350,6 @@ export default function MapDirectory() {
               ))}
             </datalist>
           </div>
-
 
           <button
             onClick={() => {
@@ -315,7 +367,6 @@ export default function MapDirectory() {
           >
             Reset Filters
           </button>
-
         </div>
       </div>
 
@@ -335,7 +386,8 @@ export default function MapDirectory() {
           {plottedReports.map((report) => {
             const s = (report['What is the current bin status?'] as string || "").toLowerCase();
             const isCriticalMarker = s.includes('overflowing') || s.includes('open dump');
-
+            const photoUrl = report['Upload a photo of the bin or dump area'] as string || '';
+            const hasPhoto = photoUrl && photoUrl.startsWith('http');
 
             return (
               <Marker
@@ -345,18 +397,12 @@ export default function MapDirectory() {
                 zIndexOffset={isCriticalMarker ? 1000 : 0}
               >
                 <Popup className="map-popup">
-                  <div style={{
-                    width: '260px',
-                    maxWidth: '85vw',
-                    padding: '0.5rem',
-                    fontFamily: 'var(--font-family)'
-                  }}>
+                  <div style={{ width: '260px', maxWidth: '85vw', padding: '0.5rem', fontFamily: 'var(--font-family)' }}>
+                    
+                    {/* Photo */}
+                    <MapPhoto url={photoUrl} />
 
-                    {/* Photo from Google Drive */}
-                    <MapPhoto url={report['Upload a photo of the bin or dump area'] as string || ''} />
-
-
-                    {/* Title with ellipsis for long names */}
+                    {/* Title */}
                     <h4 style={{
                       margin: '0 0 0.1rem',
                       fontSize: '1rem',
@@ -369,7 +415,7 @@ export default function MapDirectory() {
                       {report['Street Name or Landmark']}
                     </h4>
 
-                    {/* Location with smaller icon */}
+                    {/* Location */}
                     <p style={{
                       margin: '0 0 0.5rem',
                       fontSize: '0.7rem',
@@ -381,7 +427,7 @@ export default function MapDirectory() {
                       <MapPin size={10} color="var(--primary)" /> {report.Location}
                     </p>
 
-                    {/* Status badge - compact */}
+                    {/* Status badge */}
                     <div style={{ marginBottom: '0.5rem' }}>
                       <span style={{
                         backgroundColor: getStatusColor(report['What is the current bin status?']),
@@ -396,12 +442,47 @@ export default function MapDirectory() {
                       </span>
                     </div>
 
-                    {/* Comments - scrollable if too long */}
+                    {/* AI Prediction Section */}
+                    {hasPhoto && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        {predictingId === report.id ? (
+                          <div style={{
+                            padding: '0.4rem',
+                            backgroundColor: '#fff3e0',
+                            borderRadius: '6px',
+                            fontSize: '0.65rem',
+                            textAlign: 'center'
+                          }}>
+                            ⏳ Analyzing...
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => classifyWasteImage(photoUrl, report.id || '')}
+                            disabled={!aiModel}
+                            style={{
+                              width: '100%',
+                              padding: '0.3rem',
+                              backgroundColor: '#f0f0f0',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '0.65rem',
+                              cursor: aiModel ? 'pointer' : 'not-allowed',
+                              opacity: aiModel ? 1 : 0.5
+                            }}
+                          >
+                            🔍 Predict Waste Type
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Comments */}
                     {report['Additional comments'] && (
                       <p style={{
                         fontSize: '0.7rem',
                         color: 'var(--text-main)',
                         marginBottom: '0.75rem',
+                        marginTop: '0.5rem',
                         background: '#f8fafc',
                         padding: '0.5rem',
                         borderRadius: '6px',
@@ -414,7 +495,7 @@ export default function MapDirectory() {
                       </p>
                     )}
 
-                    {/* Action button - full width compact */}
+                    {/* Mark Collected Button */}
                     {report['What is the current bin status?'] !== 'Empty' && (
                       <button
                         onClick={() => handleMarkCollected(report.id || '')}
@@ -440,7 +521,7 @@ export default function MapDirectory() {
                       </button>
                     )}
 
-                    {/* Timestamp - tiny */}
+                    {/* Timestamp */}
                     <p style={{
                       fontSize: '0.55rem',
                       color: 'var(--text-muted)',

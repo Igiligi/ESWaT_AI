@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
 import type { Report, BinStatus, BinType } from '../contexts/DataContext';
@@ -53,7 +53,7 @@ const compressImage = (file: File): Promise<string> => {
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
 
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
         resolve(compressedDataUrl);
       };
       img.onerror = reject;
@@ -96,23 +96,31 @@ const ReportForm = () => {
   const [locationError, setLocationError] = useState<string | null>(null);
 
   // AI state
-  const [aiModel, setAiModel] = useState<tf.LayersModel | null>(null);
+  const [aiModel, setAiModel] = useState<tf.GraphModel | null>(null);
   const [aiPredicting, setAiPredicting] = useState(false);   
   const [aiPrediction, setAiPrediction] = useState<{ wasteType: string; confidence: number } | null>(null);
   const [modelLoadError, setModelLoadError] = useState<string | null>(null);
+  const modelLoadAttempted = useRef(false);
 
-  // Load AI model when component mounts
+  // Load AI model when component mounts (React lifecycle)
   useEffect(() => {
+    // Prevent multiple load attempts
+    if (modelLoadAttempted.current) return;
+    modelLoadAttempted.current = true;
+
     const loadModel = async () => {
       try {
         console.log('Loading AI model from /tfjs_eswat_model/model.json...');
-        const model = await tf.loadLayersModel('/tfjs_eswat_model/model.json');
+        // Used loadGraphModel instead of loadLayersModel
+        const model = await tf.loadGraphModel('/tfjs_eswat_model/model.json');
         setAiModel(model);
         console.log('✅ AI model loaded successfully');
         
-        // Optional: Warm up the model
+        // Warm up the model
         const dummyInput = tf.zeros([1, 224, 224, 3]);
-        await model.predict(dummyInput).data();
+        const warmupResult = model.predict(dummyInput) as tf.Tensor;
+        await warmupResult.data();
+        warmupResult.dispose();
         dummyInput.dispose();
         console.log('✅ Model warmed up');
       } catch (error: any) {
@@ -136,12 +144,21 @@ const ReportForm = () => {
       const img = new Image();
       img.src = imageUrl;
       await img.decode();
+
+      // ✅ ADD VALIDATION
+      if (img.width === 0 || img.height === 0) {
+        throw new Error('Invalid image dimensions');
+      }
+      if (img.width < 32 || img.height < 32) {
+        console.warn('Image too small, may affect prediction');
+      }
       
       const tensor = tf.browser.fromPixels(img)
-        .resizeNearestNeighbor([224, 224])
-        .toFloat()
-        .div(tf.scalar(255))
-        .expandDims(0);
+      .resizeNearestNeighbor([224, 224])
+      .toFloat()
+      .div(tf.scalar(127.5))  // Scale to [0, 2]
+      .sub(tf.scalar(1))      // Shift to [-1, 1]
+      .expandDims(0);
       
       const predictions = await aiModel.predict(tensor) as tf.Tensor;
       const data = await predictions.data();
@@ -219,6 +236,19 @@ const ReportForm = () => {
       const compressed = await compressImage(file);
       setBase64Image(compressed);
       
+    // ✅ WAIT FOR MODEL TO BE READY
+    if (aiModel) {
+      await classifyWasteImage(compressed);
+    } else {
+
+    // Retry after model loads
+    const checkModel = setInterval(() => {
+      if (aiModel) {
+        clearInterval(checkModel);
+        classifyWasteImage(compressed);
+      }
+    }, 100);
+  }
       // Run AI prediction after image is ready
       await classifyWasteImage(compressed);
 
