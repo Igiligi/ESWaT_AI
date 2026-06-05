@@ -23,25 +23,25 @@ const Header = () => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  // Desktop Link Style
   const desktopLinkStyle = (path: string) => ({
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem',
-    color: isActive(path) ? '#ffffff' : 'rgba(255,255,255,0.7)',
+    color: isActive(path) ? '#ffffff' : 'rgba(255,255,255,0.8)',
     padding: '0.5rem 0.75rem',
     textDecoration: 'none',
     fontWeight: isActive(path) ? 700 : 500,
     fontSize: '0.85rem',
     transition: 'all 0.2s',
-    borderBottom: isActive(path) ? '2px solid white' : '2px solid transparent'
+    borderBottom: isActive(path) ? '2px solid var(--ai-secondary)' : '2px solid transparent',
+    background: isActive(path) ? 'rgba(255,255,255,0.1)' : 'transparent',
+    borderRadius: '8px'
   });
 
   return (
     <>
-      {/* Top Brand Header (WhatsApp Style) */}
       <header style={{ 
-        background: '#075E54', 
+        background: 'linear-gradient(135deg, #1E40AF 0%, #3B82F6 50%, #06B6D4 100%)',
         color: 'white', 
         padding: '1rem 1.25rem', 
         display: 'flex', 
@@ -50,22 +50,21 @@ const Header = () => {
         position: 'sticky',
         top: 0,
         zIndex: 1000,
-        boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+        boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1' }}>
             <span style={{ fontWeight: 800, fontSize: '1.3rem', letterSpacing: '0.5px' }}>ESWaT</span>
-            <span style={{ fontSize: '0.55rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, marginTop: '1px' }}>Enugu State Waste Tracker</span>
+            <span style={{ fontSize: '0.55rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, marginTop: '1px' }}>Every State Waste Tracker</span>
           </div>
-          <div style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 800, alignSelf: 'flex-start', marginTop: '4px' }}>
-            {user.role === 'officer' ? 'OFFICER MODE' : 'RESIDENT MODE'}
+          <div style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '20px', textTransform: 'uppercase', fontWeight: 800, alignSelf: 'flex-start', marginTop: '4px' }}>
+            {user.role === 'officer' ? 'OFFICER MODE' : 'CITIZEN MODE'}
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <Search size={22} style={{ opacity: 0.9, cursor: 'pointer' }} className="desktop-only" />
           
-          {/* Desktop Nav Items */}
           <nav className="desktop-nav" style={{ display: 'none', gap: '0.5rem' }}>
              {user.role === 'officer' && (
                 <>
@@ -82,7 +81,7 @@ const Header = () => {
           </nav>
 
           <div style={{ position: 'relative' }}>
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} style={{ color: 'white', display: 'flex', alignItems: 'center' }}>
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} style={{ color: 'white', display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '8px', borderRadius: '50%', cursor: 'pointer' }}>
               <MoreVertical size={22} />
             </button>
             {isMenuOpen && (
@@ -90,23 +89,22 @@ const Header = () => {
                 position: 'absolute',
                 top: '100%',
                 right: 0,
-                backgroundColor: 'white',
+                backgroundColor: 'var(--bg-card)',
                 minWidth: '200px',
                 borderRadius: '12px',
                 boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
                 padding: '0.5rem 0',
                 zIndex: 1100,
                 marginTop: '0.5rem',
-                border: '1px solid #f1f5f9'
+                border: '1px solid var(--border-color)'
               }}>
-                {/* Settings & Tutorial Button - NEW */}
                 <button 
                   onClick={handleSettings}
                   style={{ 
                     width: '100%', 
                     textAlign: 'left', 
                     padding: '0.75rem 1rem', 
-                    color: '#1f2937', 
+                    color: 'var(--text-main)', 
                     fontSize: '0.9rem', 
                     display: 'flex', 
                     alignItems: 'center', 
@@ -116,15 +114,14 @@ const Header = () => {
                     cursor: 'pointer',
                     transition: 'background 0.2s'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
-                  <HelpCircle size={18} color="#128C7E" /> Settings & Tutorial
+                  <HelpCircle size={18} color="var(--ai-primary)" /> Settings & Tutorial
                 </button>
 
-                <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '0.25rem 0' }} />
+                <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
 
-                {/* Logout Button */}
                 <button 
                   onClick={handleLogout} 
                   style={{ 
@@ -152,7 +149,6 @@ const Header = () => {
         </div>
       </header>
 
-      {/* Mobile Bottom Navigation (WhatsApp Style) */}
       <nav className="bottom-nav mobile-only">
         {user.role === 'officer' && (
           <>
@@ -167,7 +163,6 @@ const Header = () => {
         )}
       </nav>
 
-      {/* Floating Action Button (FAB) */}
       {location.pathname !== '/report' && (
         <button 
           onClick={() => navigate('/report')}
@@ -196,7 +191,7 @@ const BottomNavItem = ({ to, icon, label, active }: any) => (
     <div style={{ 
       padding: '2px 16px', 
       borderRadius: '16px', 
-      backgroundColor: active ? 'rgba(7, 94, 84, 0.1)' : 'transparent',
+      backgroundColor: active ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
       transition: 'all 0.2s'
     }}>
       {icon}

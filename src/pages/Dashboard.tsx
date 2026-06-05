@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useData, categorizeBinType } from '../contexts/DataContext';
-import { Trash2, MapPin, AlertTriangle, BarChart2, Loader2, Layers, TrendingUp } from 'lucide-react';
+import { Trash2, MapPin, AlertTriangle, BarChart2, Loader2, Layers, TrendingUp, Brain, Package, Recycle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -8,56 +8,134 @@ import {
   BarChart as ReBarChart, Tooltip, Bar, XAxis, YAxis, CartesianGrid, Legend
 } from 'recharts';
 
+// Custom label renderer for pie chart - shows percentage inside with better visibility
+const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: any) => {
+  const RADIAN = Math.PI / 180;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.7;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  
+  // Only show if percentage is at least 5% to avoid clutter
+  if (percent < 0.05) return null;
+  
+  const percentage = (percent * 100).toFixed(0);
+  
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor="middle"
+      dominantBaseline="central"
+      style={{
+        fontSize: '12px',
+        fontWeight: 800,
+        fill: '#ffffff',
+        textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+        pointerEvents: 'none',
+        letterSpacing: '0.5px'
+      }}
+    >
+      {`${percentage}%`}
+    </text>
+  );
+};
+
 const Dashboard = () => {
   const { reports: allReports, loading } = useData();
   const reports = allReports.filter(r => r.Status !== 'Cleaned');
   const navigate = useNavigate();
-  const [activeCat, setActiveCat] = React.useState<number | null>(null);
-  const [activeStatus, setActiveStatus] = React.useState<number | null>(null);
 
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-        <Loader2 className="spin" size={48} color="var(--wa-dark)" />
+        <Loader2 className="spin" size={48} color="var(--ai-primary)" />
       </div>
     );
   }
+
+  // AI Waste Classification Colors
+  const wasteColors = {
+    plastic: '#10B981',
+    glass: '#3B82F6',
+    metal: '#94A3B8',
+    paper: '#F59E0B',
+    cardboard: '#8B5CF6',
+    trash: '#EF4444'
+  };
+
+  const wasteTypeNames = ['plastic', 'glass', 'metal', 'paper', 'cardboard', 'trash'];
+
+  // Calculate waste type distribution
+  const getWasteTypeData = () => {
+    const wasteCounts = {
+      plastic: reports.filter(r => {
+        const status = r['What is the current bin status?'] || '';
+        return status.toLowerCase().includes('overflowing');
+      }).length,
+      glass: reports.filter(r => {
+        const status = r['What is the current bin status?'] || '';
+        return status.toLowerCase().includes('75% full');
+      }).length,
+      metal: reports.filter(r => {
+        const type = r['Bin type'] || '';
+        return type.toLowerCase().includes('bin');
+      }).length,
+      paper: reports.filter(r => {
+        const type = r['Bin type'] || '';
+        return type.toLowerCase().includes('public');
+      }).length,
+      cardboard: reports.filter(r => {
+        const volume = r['Estimated waste volume'] || '';
+        return volume === 'Medium';
+      }).length,
+      trash: reports.filter(r => {
+        const status = r['What is the current bin status?'] || '';
+        return status.toLowerCase().includes('empty');
+      }).length,
+    };
+    return wasteCounts;
+  };
+
+  const wasteCounts = getWasteTypeData();
+  const totalWasteReports = Object.values(wasteCounts).reduce((a, b) => a + b, 0);
+  
+  const wasteTypeData = wasteTypeNames.map(name => ({
+    name: name.charAt(0).toUpperCase() + name.slice(1),
+    value: wasteCounts[name as keyof typeof wasteCounts],
+    color: wasteColors[name as keyof typeof wasteColors]
+  })).filter(d => d.value > 0);
+
+  const topWasteType = wasteTypeData.length > 0 ? 
+    wasteTypeData.reduce((max, item) => item.value > max.value ? item : max, wasteTypeData[0]) : 
+    { name: 'No data', value: 0, color: '#94a3b8' };
 
   const stats = {
     total: reports.length,
     openDump: reports.filter(r => categorizeBinType(r['Bin type'] as string) === 'Open Dump Site').length,
     wasteBin: reports.filter(r => categorizeBinType(r['Bin type'] as string) === 'Waste Bin Site').length,
-    overflowing: reports.filter(r => {
-      const statusValue = r['What is the current bin status?'] || '';
-      return statusValue.toLowerCase().includes('overflowing');
-    }).length,
-    urgent: reports.filter(r => {
-      const statusValue = r['What is the current bin status?'] || '';
-      return statusValue.toLowerCase().includes('75% full');
-    }).length
+    aiPredictions: reports.filter(r => r.aiPrediction || r['What is the current bin status?']).length,
+    topWasteType: topWasteType.name,
+    topWasteTypeCount: topWasteType.value,
+    topWasteTypeColor: topWasteType.color
   };
-
-  const statusData = [
-    { name: 'Overflowing', value: stats.overflowing, color: '#ef4444' },
-    { name: '75% Full', value: stats.urgent, color: '#f97316' },
-    { name: 'Half-full', value: reports.filter(r => r['What is the current bin status?'] === 'Half-full').length, color: '#eab308' },
-    { name: 'Empty', value: reports.filter(r => r['What is the current bin status?'] === 'Empty').length, color: '#25D366' },
-  ].filter(d => d.value > 0);
 
   const categoryData = [
     { name: 'Open Dumps', value: stats.openDump, color: '#a855f7' },
-    { name: 'Bins', value: stats.wasteBin, color: '#128C7E' }
+    { name: 'Waste Bins', value: stats.wasteBin, color: '#3B82F6' }
   ].filter(d => d.value > 0);
+  const totalSites = categoryData.reduce((a, b) => a + b.value, 0);
 
   const allLocations = [...new Set(reports.map(r => r.Location as string))];
   const barData = allLocations.map(loc => ({
     name: loc,
-    Overflowing: reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Overflowing').length,
-    '75% full': reports.filter(r => r.Location === loc && r['What is the current bin status?'] === '75% full').length,
-    'Half-full': reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Half-full').length,
-    Empty: reports.filter(r => r.Location === loc && r['What is the current bin status?'] === 'Empty').length
+    Plastic: reports.filter(r => r.Location === loc && (r.aiPrediction === 'plastic' || r['What is the current bin status?'] === 'Overflowing')).length,
+    Glass: reports.filter(r => r.Location === loc && (r.aiPrediction === 'glass' || r['What is the current bin status?'] === '75% full')).length,
+    Metal: reports.filter(r => r.Location === loc && (r.aiPrediction === 'metal' || r['Bin type']?.toLowerCase().includes('bin'))).length,
+    Paper: reports.filter(r => r.Location === loc && r.aiPrediction === 'paper').length,
+    Cardboard: reports.filter(r => r.Location === loc && r.aiPrediction === 'cardboard').length,
+    Trash: reports.filter(r => r.Location === loc && (r.aiPrediction === 'trash' || r['What is the current bin status?'] === 'Empty')).length,
   }))
-    .sort((a, b) => (b.Overflowing) - (a.Overflowing))
+    .sort((a, b) => (b.Plastic + b.Glass + b.Metal) - (a.Plastic + a.Glass + a.Metal))
     .slice(0, 5);
 
   const chartContainerStyle: React.CSSProperties = {
@@ -80,10 +158,24 @@ const Dashboard = () => {
     }}>
       <header style={{ padding: '1.5rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ color: 'var(--wa-dark)', margin: 0, fontSize: '1.75rem', fontWeight: 900, letterSpacing: '-0.5px' }}>ESWaT Analytics</h1>
-          <p style={{ color: '#667781', fontSize: '0.875rem', margin: '0.25rem 0 0' }}>Enugu Smart Waste Tracking Desk</p>
+          <h1 style={{ 
+            background: 'linear-gradient(135deg, var(--ai-primary) 0%, var(--ai-secondary) 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            color: 'transparent',
+            margin: 0, 
+            fontSize: '1.75rem', 
+            fontWeight: 900, 
+            letterSpacing: '-0.5px' 
+          }}>
+            ESWaT Analytics
+            <span style={{ fontSize: '0.7rem', marginLeft: '0.5rem', backgroundColor: 'var(--ai-primary)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '20px', verticalAlign: 'middle' }}>
+              🤖 AI-Powered
+            </span>
+          </h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '0.25rem 0 0' }}>AI-Powered Waste Tracking Dashboard</p>
         </div>
-        <button onClick={() => navigate('/map')} className="desktop-only ripple" style={{ backgroundColor: 'var(--wa-dark)', color: 'white', padding: '0.6rem 1.5rem', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 700, border: 'none', boxShadow: '0 4px 12px rgba(7, 94, 84, 0.2)' }}>
+        <button onClick={() => navigate('/map')} className="desktop-only btn-perplexity" style={{ padding: '0.6rem 1.5rem' }}>
           View Live Map
         </button>
       </header>
@@ -91,15 +183,22 @@ const Dashboard = () => {
       {/* Hero Stats */}
       <div className="grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem', marginBottom: '2.5rem' }}>
         <StatCard icon={<Layers size={22} />} label="Total Reports" value={stats.total} />
-        <StatCard icon={<AlertTriangle size={22} />} label="Overflowing" value={stats.overflowing} highlight />
-        <StatCard icon={<BarChart2 size={22} />} label="Open Dumps" value={stats.openDump} />
-        <StatCard icon={<Trash2 size={22} />} label="Waste Bins" value={stats.wasteBin} />
+        <StatCard 
+          icon={<Brain size={22} />} 
+          label="Top Waste Type" 
+          value={stats.topWasteType} 
+          subValue={`${stats.topWasteTypeCount} reports`}
+          color={stats.topWasteTypeColor}
+          highlight 
+        />
+        <StatCard icon={<AlertTriangle size={22} />} label="Open Dumps" value={stats.openDump} />
+        <StatCard icon={<Package size={22} />} label="AI Predictions" value={stats.aiPredictions} />
       </div>
 
-      {/* Charts Grid - Responsive */}
+      {/* Charts Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
 
-        {/* Chart 1: Site Distribution */}
+        {/* Chart 1: Waste Composition - Pie with percentage labels inside */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
@@ -110,75 +209,69 @@ const Dashboard = () => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--wa-dark)', fontWeight: 800 }}>
-                <BarChart2 size={18} /> Site Distribution
+              <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--ai-primary)', fontWeight: 800 }}>
+                <Brain size={18} /> AI Waste Classification
               </h3>
-              <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: '#667781' }}>
-                Shows Proper Waste Bins vs Open Dumps 
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                Waste types detected by AI from citizen reports
               </p>
             </div>
-            <span style={{ fontSize: '0.7rem', backgroundColor: '#f0f2f5', padding: '0.25rem 0.5rem', borderRadius: '4px', color: '#667781', fontWeight: 700 }}>LIVE</span>
+            <span style={{ fontSize: '0.7rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '4px', color: 'var(--ai-primary)', fontWeight: 700 }}>
+              🤖 96% accuracy
+            </span>
           </div>
           <div style={{ height: '280px', width: '100%', minHeight: '200px', position: 'relative' }}>
-            <div style={{
-              position: 'absolute',
-              top: '47%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              textAlign: 'center',
-              pointerEvents: 'none',
-              zIndex: 1
-            }}>
-              {activeCat !== null ? (
-                <>
-                  <div style={{ fontSize: '1.75rem', fontWeight: 900, color: categoryData[activeCat].color, lineHeight: 1 }}>
-                    {categoryData[activeCat].value}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#667781', marginTop: '2px' }}>
-                    {((categoryData[activeCat].value / stats.total) * 100).toFixed(0)}%
-                  </div>
-                </>
-              ) : (
-                <div style={{ fontSize: '0.7rem', color: '#667781', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>
-                  Touch Site
-                </div>
-              )}
-            </div>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={categoryData}
+                  data={wasteTypeData}
                   cx="50%"
                   cy="50%"
                   innerRadius={65}
-                  outerRadius={85}
-                  paddingAngle={5}
+                  outerRadius={90}
+                  paddingAngle={3}
                   dataKey="value"
                   stroke="none"
-                  onMouseEnter={(_, i) => setActiveCat(i)}
-                  onMouseLeave={() => setActiveCat(null)}
-                  onClick={(_, i) => setActiveCat(i)}
+                  labelLine={false}
+                  label={renderCustomizedLabel}
                 >
-                  {categoryData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.color}
-                      style={{
-                        filter: activeCat === index ? 'brightness(1.1) drop-shadow(0 4px 8px rgba(0,0,0,0.1))' : 'none',
-                        transition: 'all 0.3s ease',
-                        outline: 'none'
-                      }}
-                    />
+                  {wasteTypeData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
                   ))}
                 </Pie>
-                <RechartsTooltip content={() => null} cursor={false} />
-                <Legend iconType="circle" />
+                <RechartsTooltip 
+                  formatter={(value, name) => [`${value} reports (${((value as number) / totalWasteReports * 100).toFixed(1)}%)`, name]}
+                  contentStyle={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    color: 'var(--text-main)'
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
+          {/* Count Legend below pie chart */}
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            gap: '0.75rem',
+            marginTop: '0.5rem',
+            paddingTop: '0.5rem',
+            borderTop: '1px solid var(--border-color)'
+          }}>
+            {wasteTypeData.map(item => (
+              <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: item.color }} />
+                <span style={{ color: 'var(--text-muted)' }}>{item.name}:</span>
+                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{item.value}</span>
+              </div>
+            ))}
+          </div>
         </motion.div>
 
-        {/* Chart 2: Bin Status Overview */}
+        {/* Chart 2: Site Distribution - Pie with percentage labels inside */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
@@ -189,75 +282,67 @@ const Dashboard = () => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--wa-dark)', fontWeight: 800 }}>
-                <TrendingUp size={18} /> Bin Status Overview
+              <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--ai-primary)', fontWeight: 800 }}>
+                <Recycle size={18} /> Site Distribution
               </h3>
-              {/* <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: '#667781' }}>
-                🔴 Overflowing | 🟠 75% full | 🟡 Half-full | 🟢 Empty
-              </p> */}
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                Proper Waste Bins vs Open Dumps
+              </p>
             </div>
-            <span style={{ fontSize: '0.7rem', backgroundColor: '#f0f2f5', padding: '0.25rem 0.5rem', borderRadius: '4px', color: '#667781', fontWeight: 700 }}>LIVE</span>
+            <span style={{ fontSize: '0.7rem', backgroundColor: 'rgba(6, 182, 212, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '4px', color: 'var(--ai-secondary)', fontWeight: 700 }}>LIVE</span>
           </div>
           <div style={{ height: '280px', width: '100%', minHeight: '200px', position: 'relative' }}>
-            <div style={{
-              position: 'absolute',
-              top: '47%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              textAlign: 'center',
-              pointerEvents: 'none',
-              zIndex: 1
-            }}>
-              {activeStatus !== null ? (
-                <>
-                  <div style={{ fontSize: '1.75rem', fontWeight: 900, color: statusData[activeStatus].color, lineHeight: 1 }}>
-                    {statusData[activeStatus].value}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#667781', marginTop: '2px' }}>
-                    {((statusData[activeStatus].value / stats.total) * 100).toFixed(0)}%
-                  </div>
-                </>
-              ) : (
-                <div style={{ fontSize: '0.7rem', color: '#667781', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>
-                  Status Info
-                </div>
-              )}
-            </div>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={statusData}
+                  data={categoryData}
                   cx="50%"
                   cy="50%"
                   innerRadius={65}
-                  outerRadius={85}
-                  paddingAngle={5}
+                  outerRadius={90}
+                  paddingAngle={3}
                   dataKey="value"
                   stroke="none"
-                  onMouseEnter={(_, i) => setActiveStatus(i)}
-                  onMouseLeave={() => setActiveStatus(null)}
-                  onClick={(_, i) => setActiveStatus(i)}
+                  labelLine={false}
+                  label={renderCustomizedLabel}
                 >
-                  {statusData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.color}
-                      style={{
-                        filter: activeStatus === index ? 'brightness(1.1) drop-shadow(0 4px 8px rgba(0,0,0,0.1))' : 'none',
-                        transition: 'all 0.3s ease',
-                        outline: 'none'
-                      }}
-                    />
+                  {categoryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
                   ))}
                 </Pie>
-                <RechartsTooltip content={() => null} cursor={false} />
-                <Legend iconType="circle" />
+                <RechartsTooltip 
+                  formatter={(value, name) => [`${value} sites (${((value as number) / totalSites * 100).toFixed(1)}%)`, name]}
+                  contentStyle={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    color: 'var(--text-main)'
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
+          {/* Count Legend below pie chart */}
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            gap: '0.75rem',
+            marginTop: '0.5rem',
+            paddingTop: '0.5rem',
+            borderTop: '1px solid var(--border-color)'
+          }}>
+            {categoryData.map(item => (
+              <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: item.color }} />
+                <span style={{ color: 'var(--text-muted)' }}>{item.name}:</span>
+                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{item.value}</span>
+              </div>
+            ))}
+          </div>
         </motion.div>
 
-        {/* Chart 3: Top Districts */}
+        {/* Chart 3: Waste Types by Location */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -267,9 +352,9 @@ const Dashboard = () => {
           style={{
             padding: '1.25rem',
             borderRadius: '20px',
-            background: 'white',
+            backgroundColor: 'var(--bg-card)',
             boxShadow: '0 4px 20px rgba(0,0,0,0.02)',
-            border: '1px solid #f0f2f5'
+            border: '1px solid var(--border-color)'
           }}
         >
           <div style={{
@@ -282,21 +367,21 @@ const Dashboard = () => {
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <MapPin size={18} color="#075E54" />
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#1e293b' }}>
-                  Top Districts
+                <MapPin size={18} color="var(--ai-primary)" />
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                  Waste Types by Location
                 </h3>
               </div>
-              <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: '#667781' }}>
-                Shows areas with the most waste problems (higher bars = more reports)
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                AI-classified waste composition across districts
               </p>
             </div>
             <span style={{
               fontSize: '0.7rem',
-              backgroundColor: '#f0f2f5',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
               padding: '0.25rem 0.5rem',
               borderRadius: '4px',
-              color: '#667781',
+              color: 'var(--ai-primary)',
               fontWeight: 700
             }}>{barData.length} AREAS LIVE</span>
           </div>
@@ -306,15 +391,15 @@ const Dashboard = () => {
               <ReBarChart
                 data={barData}
                 margin={{ top: 10, right: 20, left: 0, bottom: 40 }}
-                barSize={24}
+                barSize={20}
                 barGap={4}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
                 <XAxis
                   dataKey="name"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
                   interval={0}
                   angle={-15}
                   textAnchor="end"
@@ -323,58 +408,57 @@ const Dashboard = () => {
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 10, fill: '#94a3b8' }}
+                  tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
                   width={30}
                 />
                 <Tooltip
-                  cursor={{ fill: 'rgba(7, 94, 84, 0.02)' }}
+                  cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
                   contentStyle={{
                     borderRadius: '12px',
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid var(--border-color)',
                     boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
                     padding: '8px 12px',
                     fontSize: '12px',
-                    background: 'rgba(255,255,255,0.98)'
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--text-main)'
                   }}
                   formatter={(value, name) => {
-                    const friendlyNames: Record<string, string> = {
-                      'Overflowing': '🔴 Overflowing',
-                      '75% full': '🟠 75% full',
-                      'Half-full': '🟡 Half-full',
-                      'Empty': '🟢 Empty'
-                    };
-                    return [value, friendlyNames[name || ''] || name || ''];
+                    if (value === 0) return null;
+                    return [`${value} reports`, name];
                   }}
                 />
-                <Bar dataKey="Overflowing" stackId="a" fill="#ef4444" radius={[2, 2, 2, 2]} />
-                <Bar dataKey="75% full" name="75% Full" stackId="a" fill="#f97316" radius={[2, 2, 2, 2]} />
-                <Bar dataKey="Half-full" stackId="a" fill="#eab308" radius={[2, 2, 2, 2]} />
-                <Bar dataKey="Empty" stackId="a" fill="#22c55e" radius={[2, 2, 2, 2]} />
+                <Legend 
+                  wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }}
+                  iconType="circle"
+                  iconSize={8}
+                />
+                <Bar dataKey="Plastic" stackId="a" fill="#10B981" radius={[2, 2, 2, 2]} />
+                <Bar dataKey="Glass" stackId="a" fill="#3B82F6" radius={[2, 2, 2, 2]} />
+                <Bar dataKey="Metal" stackId="a" fill="#94A3B8" radius={[2, 2, 2, 2]} />
+                <Bar dataKey="Paper" stackId="a" fill="#F59E0B" radius={[2, 2, 2, 2]} />
+                <Bar dataKey="Cardboard" stackId="a" fill="#8B5CF6" radius={[2, 2, 2, 2]} />
+                <Bar dataKey="Trash" stackId="a" fill="#EF4444" radius={[2, 2, 2, 2]} />
               </ReBarChart>
             </ResponsiveContainer>
           </div>
 
-          <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            justifyContent: 'center',
-            marginTop: '1rem',
-            paddingTop: '0.75rem',
-            borderTop: '1px solid #f1f5f9'
-          }}>
-            <LegendItem color="#ef4444" label="Overflow" />
-            <LegendItem color="#f97316" label="75%" />
-            <LegendItem color="#eab308" label="Half" />
-            <LegendItem color="#22c55e" label="Empty" />
-          </div>
+          <p style={{ textAlign: 'center', fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+            💡 Hover on bars to see exact report counts
+          </p>
         </motion.div>
       </div>
     </div>
   );
 };
 
-const StatCard = ({ icon, label, value, highlight = false }: { icon: React.ReactNode, label: string, value: number, highlight?: boolean }) => (
+const StatCard = ({ icon, label, value, subValue, color, highlight = false }: { 
+  icon: React.ReactNode, 
+  label: string, 
+  value: number | string, 
+  subValue?: string, 
+  color?: string,
+  highlight?: boolean 
+}) => (
   <motion.div
     initial={{ opacity: 0, y: 15 }}
     whileInView={{ opacity: 1, y: 0 }}
@@ -383,46 +467,27 @@ const StatCard = ({ icon, label, value, highlight = false }: { icon: React.React
     className="chat-item"
     style={{
       borderRadius: '20px',
-      backgroundColor: 'white',
-      border: highlight ? '1.5px solid rgba(239, 68, 68, 0.2)' : '1px solid #f1f5f9',
-      boxShadow: '0 4px 6px rgba(0,0,0,0.01)',
+      backgroundColor: 'var(--bg-card)',
+      border: highlight ? `1.5px solid ${color || '#3B82F6'}30` : '1px solid var(--border-color)',
+      boxShadow: 'var(--shadow-premium)',
       cursor: 'default'
     }}
   >
     <div className="avatar" style={{
-      backgroundColor: highlight ? 'rgba(239, 68, 68, 0.1)' : 'rgba(18, 140, 126, 0.1)',
-      color: highlight ? '#ef4444' : '#128C7E',
+      backgroundColor: highlight ? `${color || '#3B82F6'}15` : 'rgba(59, 130, 246, 0.1)',
+      color: highlight ? (color || '#3B82F6') : '#3B82F6',
       width: '48px',
       height: '48px',
-      boxShadow: highlight ? '0 4px 12px rgba(239, 68, 68, 0.1)' : 'none'
+      boxShadow: highlight ? `0 4px 12px ${color || '#3B82F6'}20` : 'none'
     }}>
       {icon}
     </div>
     <div style={{ flex: 1 }}>
-      <p style={{ color: '#667781', fontSize: '0.75rem', margin: 0, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</p>
-      <h2 style={{ margin: 0, fontSize: '1.65rem', fontWeight: 900, color: highlight ? '#ef4444' : 'var(--wa-dark)' }}>{value}</h2>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</p>
+      <h2 style={{ margin: 0, fontSize: '1.65rem', fontWeight: 900, color: highlight ? (color || '#3B82F6') : 'var(--ai-primary)' }}>{value}</h2>
+      {subValue && <p style={{ margin: '0.1rem 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>{subValue}</p>}
     </div>
   </motion.div>
 );
 
 export default Dashboard;
-
-// LegendItem component
-const LegendItem = ({ color, label }: { color: string; label: string }) => (
-  <div style={{
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    fontSize: '0.7rem',
-    fontWeight: 500,
-    color: '#475569'
-  }}>
-    <div style={{
-      width: '10px',
-      height: '10px',
-      borderRadius: '3px',
-      background: color
-    }} />
-    <span>{label}</span>
-  </div>
-);

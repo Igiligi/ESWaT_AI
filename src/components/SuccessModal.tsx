@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, X, Map as MapIcon } from 'lucide-react';
+import { CheckCircle, X, Map as MapIcon, Brain } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,11 +8,24 @@ interface SuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
   reportId: string;
+  aiPrediction?: { wasteType: string; confidence: number } | null;
 }
 
-const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, reportId }) => {
+const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, reportId, aiPrediction }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Waste type colors for display
+  const wasteTypeColors: Record<string, string> = {
+    'plastic': '#10B981',
+    'glass': '#3B82F6',
+    'metal': '#94A3B8',
+    'paper': '#F59E0B',
+    'cardboard': '#8B5CF6',
+    'trash': '#EF4444'
+  };
+  
+  const wasteColor = aiPrediction ? wasteTypeColors[aiPrediction.wasteType.toLowerCase()] || '#4F46E5' : '#4F46E5';
 
   if (!isOpen) return null;
 
@@ -25,7 +38,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, reportId }
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(5, 46, 22, 0.6)',
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
@@ -45,8 +58,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, reportId }
               textAlign: 'center',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
               position: 'relative',
-              border: '1px solid rgba(16, 185, 129, 0.2)',
-              backgroundColor: 'white'
+              backgroundColor: 'var(--bg-card)'
             }}
           >
             <button 
@@ -78,22 +90,44 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, reportId }
               <CheckCircle size={80} strokeWidth={2} />
             </motion.div>
 
-            <h2 style={{ color: 'var(--primary)', marginBottom: '0.75rem', fontSize: '1.5rem', lineHeight: 1.2 }}>
-              Thank you for helping keep Enugu clean! 🇳🇬
+            <h2 style={{ color: 'var(--ai-primary)', marginBottom: '0.75rem', fontSize: '1.5rem', lineHeight: 1.2 }}>
+              Report Submitted Successfully!
             </h2>
             
+            {/* AI Prediction Display - Only show if available */}
+            {aiPrediction && (
+              <div style={{
+                marginBottom: '1.5rem',
+                padding: '0.75rem',
+                backgroundColor: `${wasteColor}20`,
+                borderRadius: '12px',
+                borderLeft: `4px solid ${wasteColor}`
+              }}>
+                <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '0.2rem' }}>
+                  <Brain size={14} style={{ display: 'inline', marginRight: '4px' }} />
+                  AI Identified
+                </div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: wasteColor, textTransform: 'uppercase' }}>
+                  {aiPrediction.wasteType}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.2rem' }}>
+                  {aiPrediction.confidence.toFixed(1)}% confidence
+                </div>
+              </div>
+            )}
+
             <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '1rem' }}>
-              Your report has been recorded. ESWAMA has been notified.
+              Your waste report has been recorded. Authorities have been notified.
             </p>
 
             <div style={{ 
-              backgroundColor: '#f0fdf4', 
+              backgroundColor: 'rgba(79, 70, 229, 0.05)', 
               padding: '1rem', 
               borderRadius: '12px', 
               marginBottom: '2rem',
-              border: '1px dashed #10b981'
+              border: '1px dashed rgba(79, 70, 229, 0.3)'
             }}>
-              <span style={{ fontSize: '0.75rem', color: '#059669', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>
+              <span style={{ fontSize: '0.75rem', color: '#4F46E5', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>
                 Report ID
               </span>
               <div style={{ 
@@ -115,7 +149,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, reportId }
                   padding: '0.875rem',
                   borderRadius: '10px',
                   border: '1.5px solid var(--border-color)',
-                  backgroundColor: 'white',
+                  backgroundColor: 'transparent',
                   color: 'var(--text-main)',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -125,7 +159,6 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, reportId }
                 Close
               </button>
               
-              {/* Only show View on Map button for officers */}
               {user?.role === 'officer' && (
                 <button 
                   onClick={() => {
@@ -136,7 +169,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, reportId }
                     flex: 1.5,
                     padding: '0.875rem',
                     borderRadius: '10px',
-                    backgroundColor: 'var(--primary)',
+                    backgroundColor: 'var(--ai-primary)',
                     color: 'white',
                     border: 'none',
                     fontWeight: 700,
@@ -145,7 +178,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, reportId }
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.5rem',
-                    boxShadow: '0 4px 6px -1px rgba(11, 94, 31, 0.2)'
+                    boxShadow: '0 4px 6px -1px rgba(79, 70, 229, 0.2)'
                   }}
                 >
                   <MapIcon size={18} /> View on Map

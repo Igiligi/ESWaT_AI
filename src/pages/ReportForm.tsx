@@ -10,14 +10,11 @@ import { motion } from 'framer-motion';
 import { AlertTriangle } from 'lucide-react';
 import * as tf from '@tensorflow/tfjs';
 
-const LOCATIONS: string[] = [
-  'Abakpa', 'Independence Layout', 'Emene', 'New Artisan', '9th Mile', 'Zik Avenue', 'Ogui', 'GRA', 'Other'
-];
 const STATUSES: BinStatus[] = ['Empty', 'Half-full', '75% full', 'Overflowing'];
 
 const TYPES: BinType[] = [
-  'Public bin', 'Commercial bin', 'Residential bin',
-  'Open dump', 'Street dump', 'Empty land', 'Roadside'
+  'Waste Bin',
+  'Open Dump'
 ];
 
 // Image compression function
@@ -71,7 +68,6 @@ const ReportForm = () => {
   const [yourName, setYourName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [location, setLocation] = useState('');
-  const [otherLocation, setOtherLocation] = useState('');
   const [street, setStreet] = useState('');
   const [gps, setGps] = useState('');
   const [status, setStatus] = useState<BinStatus | ''>('');
@@ -86,8 +82,7 @@ const ReportForm = () => {
   // Modal and submission state
   const [showModal, setShowModal] = useState(false);
   const [lastReportId, setLastReportId] = useState('');
-  const [isSubmittedToday, setIsSubmittedToday] = useState(false);
-  const [justSubmitted, setJustSubmitted] = useState(false);
+  const [lastAIPrediction, setLastAIPrediction] = useState<{ wasteType: string; confidence: number } | null>(null);
 
   // Location state
   const [latitude, setLatitude] = useState<number | null>(null);
@@ -102,16 +97,14 @@ const ReportForm = () => {
   const [modelLoadError, setModelLoadError] = useState<string | null>(null);
   const modelLoadAttempted = useRef(false);
 
-  // Load AI model when component mounts (React lifecycle)
+  // Load AI model when component mounts
   useEffect(() => {
-    // Prevent multiple load attempts
     if (modelLoadAttempted.current) return;
     modelLoadAttempted.current = true;
 
     const loadModel = async () => {
       try {
         console.log('Loading AI model from /tfjs_eswat_model/model.json...');
-        // Used loadGraphModel instead of loadLayersModel
         const model = await tf.loadGraphModel('/tfjs_eswat_model/model.json');
         setAiModel(model);
         console.log('✅ AI model loaded successfully');
@@ -145,20 +138,16 @@ const ReportForm = () => {
       img.src = imageUrl;
       await img.decode();
 
-      // ✅ ADD VALIDATION
       if (img.width === 0 || img.height === 0) {
         throw new Error('Invalid image dimensions');
       }
-      if (img.width < 32 || img.height < 32) {
-        console.warn('Image too small, may affect prediction');
-      }
       
       const tensor = tf.browser.fromPixels(img)
-      .resizeNearestNeighbor([224, 224])
-      .toFloat()
-      .div(tf.scalar(127.5))  // Scale to [0, 2]
-      .sub(tf.scalar(1))      // Shift to [-1, 1]
-      .expandDims(0);
+        .resizeNearestNeighbor([224, 224])
+        .toFloat()
+        .div(tf.scalar(127.5))
+        .sub(tf.scalar(1))
+        .expandDims(0);
       
       const predictions = await aiModel.predict(tensor) as tf.Tensor;
       const data = await predictions.data();
@@ -166,14 +155,17 @@ const ReportForm = () => {
       const maxIndex = data.indexOf(Math.max(...data));
       const confidence = data[maxIndex] * 100;
       
-      setAiPrediction({
+      const result = {
         wasteType: classNames[maxIndex],
         confidence: confidence
-      });
+      };
+      
+      setAiPrediction(result);
+      console.log('AI Prediction saved:', result);
       
       tensor.dispose();
       predictions.dispose();
-      return { wasteType: classNames[maxIndex], confidence };
+      return result;
       
     } catch (error) {
       console.error('Prediction failed:', error);
@@ -182,17 +174,6 @@ const ReportForm = () => {
       setAiPredicting(false);
     }
   };
-
-  // Check for daily submission limit
-  useEffect(() => {
-    if (user) {
-      const today = new Date().toISOString().split('T')[0];
-      const lastSubmission = localStorage.getItem(`submission_${user.id}`);
-      if (lastSubmission === today) {
-        setIsSubmittedToday(true);
-      }
-    }
-  }, [user]);
 
   const generateReportId = () => {
     const now = new Date();
@@ -211,11 +192,12 @@ const ReportForm = () => {
     setWhatsapp('');
     setYourName('');
     setLocation('');
-    setOtherLocation('');
     setVolume('');
     setType('');
     setDuration('');
     setAiPrediction(null);
+    setLatitude(null);
+    setLongitude(null);
   };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -236,27 +218,23 @@ const ReportForm = () => {
       const compressed = await compressImage(file);
       setBase64Image(compressed);
       
-    // ✅ WAIT FOR MODEL TO BE READY
-    if (aiModel) {
-      await classifyWasteImage(compressed);
-    } else {
-
-    // Retry after model loads
-    const checkModel = setInterval(() => {
       if (aiModel) {
-        clearInterval(checkModel);
-        classifyWasteImage(compressed);
+        await classifyWasteImage(compressed);
+      } else {
+        // Wait for model to load
+        const checkModel = setInterval(async () => {
+          if (aiModel) {
+            clearInterval(checkModel);
+            await classifyWasteImage(compressed);
+          }
+        }, 100);
       }
-    }, 100);
-  }
-      // Run AI prediction after image is ready
-      await classifyWasteImage(compressed);
 
       if (!latitude && !longitude) {
         getCurrentLocation();
       }
 
-      toast.success('Image ready!', { id: 'compress' });
+      toast.success('Image ready! AI analyzing...', { id: 'compress' });
     } catch (error) {
       console.error('Compression failed:', error);
       toast.error('Image compression failed. Please try another image.', { id: 'compress' });
@@ -279,6 +257,7 @@ const ReportForm = () => {
       (position) => {
         setLatitude(position.coords.latitude);
         setLongitude(position.coords.longitude);
+        setGps(`${position.coords.latitude}, ${position.coords.longitude}`);
         setIsGettingLocation(false);
         toast.success('📍 Location captured automatically!');
       },
@@ -313,11 +292,6 @@ const ReportForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isSubmittedToday) {
-      toast.error("Daily Limit Reached – You've already submitted a report today.");
-      return;
-    }
-
     if (!street.trim()) {
       toast.error('Street name is required');
       return;
@@ -330,11 +304,18 @@ const ReportForm = () => {
 
     const reportId = generateReportId();
 
+    // Store AI prediction data to be saved to Google Sheets
+    const aiPredictionValue = aiPrediction?.wasteType || '';
+    const aiConfidenceValue = aiPrediction?.confidence || 0;
+
+    console.log('Submitting with AI Prediction:', aiPredictionValue);
+    console.log('Submitting with AI Confidence:', aiConfidenceValue);
+
     const newReport: Report = {
       Timestamp: new Date().toISOString(),
       'Email Address': user?.email || '',
       'Your Name': yourName,
-      Location: location === 'Other' ? otherLocation : location,
+      Location: location,
       'Additional comments': comments,
       'Street Name or Landmark': street,
       'GPS Coordinates': gps,
@@ -345,26 +326,25 @@ const ReportForm = () => {
       'WhatsApp number': whatsapp,
       'How long has this site been used for dumping?': duration,
       id: reportId,
-      // @ts-ignore
       base64Image: base64Image,
       latitude: latitude,
-      longitude: longitude
+      longitude: longitude,
+      // AI Prediction fields to be saved to Google Sheets
+      'AI Prediction': aiPredictionValue,
+      'AI Confidence': aiConfidenceValue,
+      // Also store in alternative format for compatibility
+      aiPrediction: aiPredictionValue,
+      aiConfidence: aiConfidenceValue
     };
 
-    toast.loading('Submitting report (this may take 20-30 seconds)...', { id: 'submit' });
+    toast.loading('Submitting report with AI analysis...', { id: 'submit' });
 
     const success = await addReport(newReport);
 
     if (success) {
       toast.success('Report submitted successfully!', { id: 'submit' });
-
-      if (user) {
-        const today = new Date().toISOString().split('T')[0];
-        localStorage.setItem(`submission_${user.id}`, today);
-      }
-
       setLastReportId(reportId);
-      setJustSubmitted(true);
+      setLastAIPrediction(aiPrediction);
       setShowModal(true);
       resetForm();
     } else {
@@ -372,38 +352,11 @@ const ReportForm = () => {
     }
   };
 
-  // Daily limit reached screen
-  if (isSubmittedToday && !justSubmitted && !showModal) {
-    return (
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ maxWidth: '600px', margin: '4rem auto', textAlign: 'center' }}>
-        <div className="card" style={{ padding: '3rem' }}>
-          <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>🗓️</div>
-          <h2 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Daily Limit Reached</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', lineHeight: '1.6' }}>
-            You've already submitted a report today. Thank you for helping keep Enugu clean!
-          </p>
-          
-          {user?.role === 'officer' && (
-            <button 
-              onClick={() => navigate('/map')} 
-              style={{ 
-                marginTop: '2rem', 
-                backgroundColor: 'var(--primary)', 
-                color: 'white', 
-                padding: '0.75rem 1.5rem', 
-                borderRadius: '10px', 
-                fontWeight: 600, 
-                border: 'none', 
-                cursor: 'pointer' 
-              }}
-            >
-              View Live Map
-            </button>
-          )}
-        </div>
-      </motion.div>
-    );
-  }
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 80) return '#10b981';
+    if (confidence >= 50) return '#f59e0b';
+    return '#ef4444';
+  };
 
   const inputStyle = {
     padding: '0.75rem 1rem',
@@ -413,7 +366,8 @@ const ReportForm = () => {
     width: '100%',
     transition: 'all 0.2s',
     outline: 'none',
-    backgroundColor: 'white'
+    backgroundColor: 'var(--bg-card)',
+    color: 'var(--text-main)'
   };
 
   const labelStyle = {
@@ -430,11 +384,23 @@ const ReportForm = () => {
     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} style={{ maxWidth: '700px', margin: '0 auto', paddingBottom: '3rem' }}>
       <div className="card" style={{ padding: '2.5rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{ display: 'inline-flex', padding: '1rem', backgroundColor: 'var(--primary)', color: 'white', borderRadius: '14px', marginBottom: '1rem' }}>
+          <div style={{ display: 'inline-flex', padding: '1rem', background: 'linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%)', color: 'white', borderRadius: '14px', marginBottom: '1rem' }}>
             <FileText size={32} />
           </div>
-          <h2 style={{ color: 'var(--primary)', margin: 0, fontSize: '1.75rem' }}>Waste Disposal Report</h2>
-          <p style={{ color: 'var(--text-muted)', margin: '0.5rem 0' }}>Submit a new site for ESWAMA collection.</p>
+          <h2 style={{ 
+            background: 'linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            color: 'transparent',
+            margin: 0, 
+            fontSize: '1.75rem' 
+          }}>
+            Waste Disposal Report
+            <span style={{ fontSize: '0.8rem', marginLeft: '0.5rem', backgroundColor: '#e0e7ff', color: '#4f46e5', padding: '0.2rem 0.5rem', borderRadius: '20px', display: 'inline-block', verticalAlign: 'middle' }}>
+              🤖 Powered by AI
+            </span>
+          </h2>
+          <p style={{ color: 'var(--text-muted)', margin: '0.5rem 0' }}>AI will identify waste type from your photo – automatically saved with your report</p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -456,86 +422,53 @@ const ReportForm = () => {
               <input required value={street} onChange={e => setStreet(e.target.value)} type="text" placeholder="e.g. Near Shoprite, Zik Avenue" style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}><MapPin size={16} /> Area</label>
-              <select required value={location} onChange={e => setLocation(e.target.value)} style={inputStyle}>
-                <option value="">Select Area</option>
-                {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
-              </select>
+              <label style={labelStyle}><MapPin size={16} /> Location (City, State) *</label>
+              <input required value={location} onChange={e => setLocation(e.target.value)} type="text" placeholder="e.g. Enugu, Enugu State" style={inputStyle} />
             </div>
           </div>
 
-          {location === 'Other' && (
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-              <label style={labelStyle}><MapPin size={16} /> Specify Location</label>
-              <input required value={otherLocation} onChange={e => setOtherLocation(e.target.value)} type="text" placeholder="Enter manual location" style={inputStyle} />
-            </motion.div>
-          )}
-
+          {/* GPS Coordinates Section with FIXED button visibility */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-              <label style={{ ...labelStyle, marginBottom: 0 }}><MapPin size={16} /> GPS Coordinates (Optional)</label>
+              <label style={{ ...labelStyle, marginBottom: 0 }}><MapPin size={16} /> GPS Coordinates</label>
               <button
                 type="button"
                 onClick={getCurrentLocation}
                 disabled={isGettingLocation}
                 style={{
-                  fontSize: '0.7rem',
-                  padding: '0.25rem 0.75rem',
+                  fontSize: '0.75rem',
+                  padding: '0.5rem 1rem',
                   borderRadius: '20px',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--primary)',
-                  color: 'white',
-                  fontWeight: 500,
+                  border: '1px solid #3B82F6',
+                  backgroundColor: '#EFF6FF',
+                  color: '#1E40AF',
+                  fontWeight: 600,
                   cursor: isGettingLocation ? 'not-allowed' : 'pointer',
-                  opacity: isGettingLocation ? 0.6 : 1
+                  opacity: isGettingLocation ? 0.7 : 1,
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isGettingLocation) {
+                    e.currentTarget.style.backgroundColor = '#DBEAFE';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isGettingLocation) {
+                    e.currentTarget.style.backgroundColor = '#EFF6FF';
+                  }
                 }}
               >
-                {isGettingLocation ? '📍 Locating...' : '📍 Use My Location'}
+                {isGettingLocation ? '📍 Locating...' : '📍 Detect My Location'}
               </button>
             </div>
             <input 
               value={gps} 
               onChange={e => setGps(e.target.value)} 
               type="text" 
-              placeholder="e.g. 6.4455, 7.5534 (or auto-capture below)" 
+              placeholder="e.g. 6.4455, 7.5534 (or tap Detect My Location)" 
               style={inputStyle} 
             />
           </div>
-
-          {isGettingLocation && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', marginTop: '0.5rem' }}>
-              <Loader2 size={16} className="spin" />
-              <span style={{ fontSize: '0.75rem' }}>Getting your location...</span>
-            </div>
-          )}
-
-          {latitude && longitude && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981' }}>
-                <MapPin size={16} />
-                <span style={{ fontSize: '0.75rem' }}>
-                  📍 Auto-captured: {latitude.toFixed(6)}, {longitude.toFixed(6)}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setGps(`${latitude}, ${longitude}`);
-                  toast.success('Coordinates copied to field!');
-                }}
-                style={{
-                  fontSize: '0.65rem',
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '12px',
-                  border: '1px solid var(--border-color)',
-                  background: '#f0f2f5',
-                  cursor: 'pointer'
-                }}
-              >
-                📋 Copy to Field
-              </button>
-            </div>
-          )}
 
           {locationError && !latitude && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444', marginTop: '0.5rem' }}>
@@ -609,11 +542,12 @@ const ReportForm = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.75rem',
-                backgroundColor: isCompressing ? '#f1f5f9' : '#f8fafc',
+                backgroundColor: isCompressing ? 'var(--bg-elevated)' : 'var(--bg-card)',
                 borderStyle: 'dashed',
                 borderWidth: '2px',
-                color: photoName ? 'var(--primary)' : 'var(--text-muted)',
-                opacity: isCompressing ? 0.7 : 1
+                color: photoName ? 'var(--ai-primary)' : 'var(--text-muted)',
+                opacity: isCompressing ? 0.7 : 1,
+                cursor: 'pointer'
               }}>
                 {isCompressing ? <Loader2 size={20} className="spin" /> : <Camera size={20} />}
                 {isCompressing ? 'Compressing image...' : (photoName ? `Selected: ${photoName}` : 'Tap to take or choose photo')}
@@ -631,17 +565,17 @@ const ReportForm = () => {
               </motion.div>
             )}
             
-            {/* AI Prediction Display */}
+            {/* AI Prediction Display - Will be saved to Google Sheets */}
             {aiPredicting && (
               <div style={{
                 marginTop: '0.75rem',
                 padding: '0.75rem',
-                backgroundColor: '#fff3e0',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
                 borderRadius: '8px',
                 textAlign: 'center'
               }}>
                 <Loader2 size={16} className="spin" style={{ display: 'inline-block', marginRight: '8px' }} />
-                <span>🤖 Analyzing waste image...</span>
+                <span>🤖 AI analyzing waste type...</span>
               </div>
             )}
             
@@ -649,12 +583,34 @@ const ReportForm = () => {
               <div style={{
                 marginTop: '0.75rem',
                 padding: '0.75rem',
-                backgroundColor: '#e8f5e9',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
                 borderRadius: '8px',
-                textAlign: 'center'
+                textAlign: 'center',
+                borderLeft: `4px solid ${getConfidenceColor(aiPrediction.confidence)}`
               }}>
-                <strong>🤖 AI Prediction:</strong> {aiPrediction.wasteType} 
-                ({aiPrediction.confidence.toFixed(1)}% confidence)
+                <strong>🤖 AI Identified:</strong> {aiPrediction.wasteType.toUpperCase()} 
+                <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem' }}>
+                  ({aiPrediction.confidence.toFixed(1)}% confidence)
+                </span>
+                <div style={{
+                  marginTop: '0.5rem',
+                  width: '100%',
+                  height: '4px',
+                  backgroundColor: '#e2e8f0',
+                  borderRadius: '2px',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    width: `${aiPrediction.confidence}%`,
+                    height: '100%',
+                    backgroundColor: getConfidenceColor(aiPrediction.confidence),
+                    borderRadius: '2px',
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+                <p style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '0.3rem', marginBottom: 0 }}>
+                  ✅ This AI prediction will be saved with your report
+                </p>
               </div>
             )}
             
@@ -667,7 +623,7 @@ const ReportForm = () => {
                 textAlign: 'center',
                 color: '#c62828'
               }}>
-                ⚠️ AI model not loaded. Please refresh the page.
+                ⚠️ AI model not loaded. Report will still be submitted without AI prediction.
               </div>
             )}
           </div>
@@ -681,7 +637,7 @@ const ReportForm = () => {
             disabled={loading || isCompressing || !base64Image}
             type="submit"
             style={{
-              backgroundColor: (loading || isCompressing || !base64Image) ? '#94a3b8' : 'var(--primary)',
+              background: (loading || isCompressing || !base64Image) ? 'var(--text-muted)' : 'linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%)',
               color: 'white',
               padding: '1rem',
               borderRadius: '12px',
@@ -692,7 +648,7 @@ const ReportForm = () => {
               alignItems: 'center',
               gap: '0.75rem',
               fontSize: '1rem',
-              boxShadow: '0 8px 16px -4px rgba(11, 94, 31, 0.3)',
+              boxShadow: (loading || isCompressing || !base64Image) ? 'none' : '0 8px 16px -4px rgba(59, 130, 246, 0.3)',
               cursor: (loading || isCompressing || !base64Image) ? 'not-allowed' : 'pointer',
               opacity: (loading || isCompressing || !base64Image) ? 0.6 : 1,
               border: 'none',
@@ -700,19 +656,20 @@ const ReportForm = () => {
             }}
           >
             {loading ? (
-              <><Loader2 size={18} className="spin" /> Submitting (may take 30 sec)...</>
+              <><Loader2 size={18} className="spin" /> Submitting with AI data...</>
             ) : isCompressing ? (
               <><Loader2 size={18} className="spin" /> Compressing image...</>
             ) : !base64Image ? (
-              <><Camera size={18} /> Take photo first</>
+              <><Camera size={18} /> Select a photo first</>
             ) : (
-              <><Send size={18} /> Send to ESWAMA</>
+              <><Send size={18} /> Submit Report with AI Analysis</>
             )}
           </button>
-
-          {loading && (
-            <p style={{ textAlign: 'center', color: '#64748b', fontSize: '0.8rem', marginTop: '0.5rem' }}>
-              ⏱️ Uploading photo and saving report. This may take 20-30 seconds. Please don't close the page.
+          
+          {/* Help text for the button */}
+          {!base64Image && (
+            <p style={{ textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '-0.5rem' }}>
+              Please select a photo to enable submission
             </p>
           )}
         </form>
@@ -720,14 +677,9 @@ const ReportForm = () => {
 
       <SuccessModal
         isOpen={showModal}
-        onClose={() => {
-          setShowModal(false);
-          if (justSubmitted) {
-            setIsSubmittedToday(true);
-            setJustSubmitted(false);
-          }
-        }}
+        onClose={() => setShowModal(false)}
         reportId={lastReportId}
+        aiPrediction={lastAIPrediction}
       />
     </motion.div>
   );

@@ -3,38 +3,26 @@ import type { ReactNode } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
-// Helper: perform a CORS-safe GET to Google Apps Script.
-// axios adds an 'Accept: application/json' header which triggers a preflight
-// OPTIONS request that GAS cannot handle → CORS error.
-// Native fetch with no custom headers is a "simple request" → no preflight.
 async function gasGet(url: string): Promise<any[]> {
   const res = await fetch(url, { method: 'GET', redirect: 'follow' });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   const json = await res.json();
   
-  // Handle your Apps Script format: { status: 'success', data: [...] }
   if (json && json.status === 'success' && Array.isArray(json.data)) {
-    console.log(`✅ Found ${json.data.length} records in json.data array`);
     return json.data;
   }
   
-  // Handle direct array format (fallback)
   if (Array.isArray(json)) {
-    console.log(`✅ Found ${json.length} records in direct array format`);
     return json;
   }
   
-  // Handle single object wrapped as array
   if (json && typeof json === 'object' && !Array.isArray(json)) {
-    console.log('⚠️ Received single object, wrapping as array');
     return [json];
   }
   
-  console.error('❌ Unexpected response format:', json);
-  throw new Error('Expected an array from the API, got: ' + typeof json);
+  throw new Error('Expected an array from the API');
 }
 
-// Columns: Timestamp, Location, Street Name or Landmark, GPS Coordinates, Bin Status, Bin Type, Comments, Photo URL
 export type BinStatus = 'Overflowing' | '75% full' | 'Half-full' | 'Empty' | 'Open dump';
 export type BinType = 'Public bin' | 'Commercial bin' | 'Residential bin' | 'Open dump' | 'Street dump' | 'Empty land' | 'Roadside';
 
@@ -46,13 +34,10 @@ export const categorizeBinType = (type: string = "") => {
   if (t.includes('open dump') || t.includes('street dump') || t.includes('empty land') || t.includes('roadside')) {
     return 'Open Dump Site';
   }
-  // Fallback for older data or partial matches
   if (t.includes('bin')) return 'Waste Bin Site';
   if (t.includes('dump') || t.includes('land') || t.includes('side')) return 'Open Dump Site';
-  
   return 'Other';
 };
-
 
 export interface Report {
   id?: string;
@@ -71,7 +56,14 @@ export interface Report {
   'How long has this site been used for dumping?'?: string;
   'Last Collected'?: string;
   'Collected By'?: string;
-  'Status'?: 'Active' | 'Cleaned'; // Added for tracking removal
+  'Status'?: 'Active' | 'Cleaned';
+  'AI Prediction'?: string;
+  'AI Confidence'?: number;
+  aiPrediction?: string;
+  aiConfidence?: number;
+  base64Image?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface DataContextType {
@@ -83,7 +75,6 @@ interface DataContextType {
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
-
 const DEFAULT_API_URL = import.meta.env.VITE_SHEET_API_URL || '';
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
@@ -94,58 +85,34 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       if (!DEFAULT_API_URL) {
-        console.warn('VITE_SHEET_API_URL is not set in .env');
         setReports([]);
         setLoading(false);
         return;
       }
 
-      // Use gasGet (native fetch) to avoid CORS preflight that axios triggers
       const data = await gasGet(DEFAULT_API_URL);
-      console.log(`✅ Fetched ${data.length} records from Google Sheet.`);
-
+      
       const validReports = data
         .filter((r: any) => r.Timestamp || r.Location)
         .map((r: any) => {
           const normalized: any = { ...r };
-
-          const statusKey = Object.keys(r).find(k =>
-            k.toLowerCase().includes('bin status') || k.toLowerCase() === 'status'
-          ) || 'What is the current bin status?';
-          normalized['What is the current bin status?'] = r[statusKey] || '';
-
-          const typeKey = Object.keys(r).find(k =>
-            k.toLowerCase() === 'bin type' || k.toLowerCase() === 'type'
-          ) || 'Bin type';
-          normalized['Bin type'] = r[typeKey] || r['Bin Type'] || '';
-
-          const landmarkKey = Object.keys(r).find(k =>
-            k.toLowerCase().includes('landmark') || k.toLowerCase().includes('street')
-          ) || 'Street Name or Landmark';
-          normalized['Street Name or Landmark'] = r[landmarkKey] || '';
-
-          const photoKey = Object.keys(r).find(k =>
-            k.toLowerCase().includes('photo') || k.toLowerCase().includes('image')
-          ) || 'Upload a photo of the bin or dump area';
-          normalized['Upload a photo of the bin or dump area'] = r[photoKey] || '';
-
+          
+          const aiPrediction = r['AI Prediction'] || r.aiPrediction || '';
+          const aiConfidence = parseFloat(r['AI Confidence'] || r.aiConfidence || '0');
+          
           return {
             ...normalized,
-            id: r.id || r.Timestamp || `id-${Math.random().toString(36).substr(2, 9)}`
+            id: r.id || r.Timestamp || `id-${Math.random().toString(36).substr(2, 9)}`,
+            'AI Prediction': aiPrediction,
+            'AI Confidence': isNaN(aiConfidence) ? 0 : aiConfidence,
+            aiPrediction: aiPrediction,
+            aiConfidence: isNaN(aiConfidence) ? 0 : aiConfidence,
           } as Report;
         });
-
+      
       setReports(validReports);
     } catch (error: any) {
-      console.error('❌ Failed to fetch data from Google Sheet:', error);
-      const msg = error?.message || 'Unknown error';
-      if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-        toast.error('Network error: Check your internet connection.');
-      } else if (msg.includes('404') || msg.includes('EOF')) {
-        toast.error('API not found: Please re-deploy your Google Apps Script and update VITE_SHEET_API_URL.');
-      } else {
-        toast.error(`Connection failed: ${msg}`);
-      }
+      console.error('Failed to fetch data:', error);
       setReports([]);
     } finally {
       setLoading(false);
@@ -160,27 +127,52 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       if (DEFAULT_API_URL) {
-        const response = await axios.post(DEFAULT_API_URL, JSON.stringify(report), {
-          timeout: 15000,
+        // Create a clean copy without undefined values
+        const submissionData: any = {
+          Timestamp: report.Timestamp,
+          'Your Name': report['Your Name'] || '',
+          Location: report.Location,
+          'Street Name or Landmark': report['Street Name or Landmark'],
+          'GPS Coordinates': report['GPS Coordinates'] || '',
+          'What is the current bin status?': report['What is the current bin status?'],
+          'Estimated waste volume': report['Estimated waste volume'] || '',
+          'Bin type': report['Bin type'],
+          'WhatsApp number': report['WhatsApp number'] || '',
+          'How long has this site been used for dumping?': report['How long has this site been used for dumping?'] || '',
+          'Additional comments': report['Additional comments'] || '',
+          id: report.id,
+          // AI Prediction fields - send in both formats to ensure capture
+          'AI Prediction': report.aiPrediction || report['AI Prediction'] || '',
+          aiPrediction: report.aiPrediction || report['AI Prediction'] || '',
+          'AI Confidence': report.aiConfidence || report['AI Confidence'] || 0,
+          aiConfidence: report.aiConfidence || report['AI Confidence'] || 0,
+          // Photo - this is critical
+          base64Image: report.base64Image || ''
+        };
+        
+        console.log('Sending AI Prediction:', submissionData['AI Prediction']);
+        console.log('Sending AI Confidence:', submissionData['AI Confidence']);
+        console.log('Has base64Image:', !!submissionData.base64Image);
+        
+        const response = await axios.post(DEFAULT_API_URL, JSON.stringify(submissionData), {
+          timeout: 30000,
           headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
         
-        if (response.status === 201 || response.status === 200 || response.data?.status === 'success') {
+        if (response.status === 200 || response.data?.status === 'success') {
           await refreshData();
           setLoading(false);
           return true;
         }
-        throw new Error(`Submission failed with status: ${response.status}`);
+        throw new Error(`Submission failed`);
       } else {
-        // Mock save
         setReports(prev => [report, ...prev]);
         setLoading(false);
         return true;
       }
     } catch (error: any) {
       console.error('Failed to add report:', error);
-      const message = error.response?.data?.message || error.message || 'Unknown error';
-      toast.error(`Submission failed: ${message}`);
+      toast.error(`Submission failed: ${error.message}`);
       setLoading(false);
       return false;
     }
@@ -201,7 +193,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         });
 
         if (response.status === 200) {
-          // Instant UI Update: Mark locally as cleaned
           setReports(prev => prev.map(r => (r.id === id ? { 
             ...r, 
             'What is the current bin status?': newStatus,
@@ -209,14 +200,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           } : r)));
           return true;
         }
-        throw new Error(`Update failed with status: ${response.status}`);
+        throw new Error(`Update failed`);
       } else {
         setReports(prev => prev.map(r => (r.id === id ? { ...r, 'What is the current bin status?': newStatus } : r)));
         return true;
       }
     } catch (error: any) {
       console.error('Failed to update report:', error);
-      toast.error('Failed to update status. Please try again.');
+      toast.error('Failed to update status');
       return false;
     } finally {
       setLoading(false);

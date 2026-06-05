@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, ChevronRight, Info, Shield, Camera, Calendar, MapPin, Bell, Moon, Globe, Users, Award, BookOpen, Star } from 'lucide-react';
+import { LogOut, ChevronRight, Info, Shield, Camera, Calendar, MapPin, Bell, Moon, Globe, Users, Award, BookOpen, Star, Sun } from 'lucide-react';
 import { motion } from 'framer-motion';
 import InteractiveTutorial from '../components/InteractiveTutorial';
 
@@ -9,29 +9,46 @@ const Settings = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showTutorial, setShowTutorial] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved === 'true';
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+    localStorage.setItem('darkMode', String(isDarkMode));
+  }, [isDarkMode]);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  const toggleTheme = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
   const menuItems = [
     {
-      category: 'App Guide',
+      category: '🤖 AI Features',
       items: [
         { 
           icon: <BookOpen size={20} />, 
           label: 'Interactive Tutorial', 
-          description: 'Learn how to use the app step by step',
+          description: 'Learn how AI waste classification works',
           action: () => setShowTutorial(true),
-          color: '#128C7E'
+          color: '#06B6D4'
         },
         { 
           icon: <Info size={20} />, 
           label: 'About ESWaT', 
-          description: 'Version 1.0.0 - Enugu Smart Waste Tracker',
-          action: () => alert('ESWaT v1.0.0\nBuilt for 3MTT NextGen Challenge\n© 2026 Chibueze Igiligi'),
-          color: '#075E54'
+          description: 'Version 2.0.0 - AI-Powered Waste Tracker',
+          action: () => alert('ESWaT v2.0.0\n🤖 AI-Powered Waste Classification\n✅ 96% accuracy on waste identification\n📍 Real-time map tracking\n© 2026 TechCruch Group Golf Project'),
+          color: '#3B82F6'
         },
       ]
     },
@@ -41,42 +58,35 @@ const Settings = () => {
         { 
           icon: <Users size={20} />, 
           label: 'Account Type', 
-          description: user?.role === 'officer' ? 'ESWAMA Officer' : 'Resident User',
+          description: user?.role === 'officer' ? 'Waste Officer' : 'Citizen User',
           action: undefined,
-          color: '#128C7E'
+          color: '#10B981'
         },
         { 
           icon: <Award size={20} />, 
           label: 'User ID', 
           description: user?.id || 'Not available',
           action: undefined,
-          color: '#f97316'
+          color: '#F59E0B'
         },
       ]
     },
     {
-      category: 'Report Settings',
+      category: 'AI & Report Settings',
       items: [
         { 
           icon: <Camera size={20} />, 
-          label: 'Photo Quality', 
-          description: 'Images are compressed for faster upload',
-          action: () => alert('Photos are automatically compressed to 70% quality for faster upload. Max size: 10MB'),
-          color: '#a855f7'
-        },
-        { 
-          icon: <Calendar size={20} />, 
-          label: 'Daily Limit', 
-          description: '1 report per day',
-          action: () => alert('You can only submit one report per day to ensure data quality.'),
-          color: '#eab308'
+          label: 'AI Image Analysis', 
+          description: 'TensorFlow.js model with 96% accuracy',
+          action: () => alert('🤖 AI Model: MobileNetV2\n📊 Validation Accuracy: 96.05%\n📦 Model Size: 14MB\n⚡ Runs directly in your browser'),
+          color: '#06B6D4'
         },
         { 
           icon: <MapPin size={20} />, 
-          label: 'Location Accuracy', 
-          description: 'GPS priority, falls back to street names',
-          action: () => alert('The app uses GPS coordinates first. If not available, it uses street names + landmarks.'),
-          color: '#ef4444'
+          label: 'Location Tracking', 
+          description: 'Auto-capture GPS coordinates',
+          action: () => alert('📍 GPS coordinates are automatically captured when you allow location access. You can also manually enter coordinates.'),
+          color: '#3B82F6'
         },
       ]
     },
@@ -84,25 +94,25 @@ const Settings = () => {
       category: 'Preferences',
       items: [
         { 
+          icon: isDarkMode ? <Sun size={20} /> : <Moon size={20} />, 
+          label: 'Theme', 
+          description: isDarkMode ? 'Dark mode (Switch to Light)' : 'Light mode (Switch to Dark)',
+          action: toggleTheme,
+          color: '#8B5CF6'
+        },
+        { 
           icon: <Bell size={20} />, 
           label: 'Notifications', 
           description: 'Toast notifications enabled',
-          action: () => alert('Notifications are shown as popups for important actions.'),
-          color: '#f97316'
-        },
-        { 
-          icon: <Moon size={20} />, 
-          label: 'Theme', 
-          description: 'Light mode (Dark mode coming soon)',
-          action: () => alert('Dark mode will be available in a future update.'),
-          color: '#64748b'
+          action: () => alert('Notifications are shown as popups for important actions like AI predictions and report submissions.'),
+          color: '#F59E0B'
         },
         { 
           icon: <Globe size={20} />, 
           label: 'Language', 
-          description: 'English (Nigerian English)',
-          action: () => alert('The app uses simple, clear English for all users.'),
-          color: '#075E54'
+          description: 'English (Nigeria)',
+          action: () => alert('🌍 Language: English (Nigerian English). Multi-language support planned for future updates.'),
+          color: '#10B981'
         },
       ]
     },
@@ -112,16 +122,16 @@ const Settings = () => {
         { 
           icon: <Shield size={20} />, 
           label: 'Privacy Policy', 
-          description: 'Your data is secure with Google Sheets',
-          action: () => alert('All reports are stored securely in Google Sheets. Photos are saved to Google Drive with public access for viewing.'),
-          color: '#128C7E'
+          description: 'Your data is secure',
+          action: () => alert('🔒 All reports are stored securely. Photos are saved to Google Drive with restricted access. Location data is only used for waste tracking.'),
+          color: '#3B82F6'
         },
         { 
           icon: <Star size={20} />, 
           label: 'Rate the App', 
           description: 'Help us improve ESWaT',
-          action: () => alert('Thank you! We appreciate your feedback.'),
-          color: '#eab308'
+          action: () => alert('⭐ Thank you! Your feedback helps us make ESWaT better. Share your experience with the TechCrush community!'),
+          color: '#F59E0B'
         },
       ]
     },
@@ -139,14 +149,16 @@ const Settings = () => {
         paddingRight: '1rem'
       }}
     >
-      {/* Header */}
       <div style={{ 
         padding: '1.5rem 0',
-        borderBottom: '1px solid #f1f5f9',
+        borderBottom: '1px solid var(--border-color)',
         marginBottom: '1rem'
       }}>
         <h1 style={{ 
-          color: 'var(--primary)', 
+          background: 'linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%)',
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          color: 'transparent',
           margin: 0, 
           fontSize: '1.75rem', 
           fontWeight: 800,
@@ -154,19 +166,18 @@ const Settings = () => {
         }}>
           Settings
         </h1>
-        <p style={{ color: '#667781', fontSize: '0.875rem', margin: '0.25rem 0 0' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '0.25rem 0 0' }}>
           Manage your ESWaT preferences
         </p>
       </div>
 
-      {/* Menu Items */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         {menuItems.map((section, sectionIdx) => (
           <div key={sectionIdx}>
             <h3 style={{ 
               fontSize: '0.75rem', 
               fontWeight: 700, 
-              color: '#667781',
+              color: 'var(--text-muted)',
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
               margin: '0 0 0.75rem 0.5rem'
@@ -174,11 +185,11 @@ const Settings = () => {
               {section.category}
             </h3>
             <div style={{ 
-              backgroundColor: 'white', 
+              backgroundColor: 'var(--bg-card)', 
               borderRadius: '16px',
               overflow: 'hidden',
               boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-              border: '1px solid #f1f5f9'
+              border: '1px solid var(--border-color)'
             }}>
               {section.items.map((item, itemIdx) => (
                 <motion.div
@@ -194,12 +205,12 @@ const Settings = () => {
                     alignItems: 'center',
                     gap: '1rem',
                     padding: '1rem',
-                    borderBottom: itemIdx < section.items.length - 1 ? '1px solid #f1f5f9' : 'none',
+                    borderBottom: itemIdx < section.items.length - 1 ? '1px solid var(--border-color)' : 'none',
                     cursor: item.action ? 'pointer' : 'default',
                     transition: 'background 0.2s'
                   }}
                   onMouseEnter={(e) => {
-                    if (item.action) e.currentTarget.style.backgroundColor = '#f8fafc';
+                    if (item.action) e.currentTarget.style.backgroundColor = 'var(--bg-main)';
                   }}
                   onMouseLeave={(e) => {
                     if (item.action) e.currentTarget.style.backgroundColor = 'transparent';
@@ -209,7 +220,7 @@ const Settings = () => {
                     width: '36px',
                     height: '36px',
                     borderRadius: '10px',
-                    backgroundColor: `${item.color}10`,
+                    backgroundColor: `${item.color}20`,
                     color: item.color,
                     display: 'flex',
                     alignItems: 'center',
@@ -219,24 +230,23 @@ const Settings = () => {
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.95rem' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.95rem' }}>
                         {item.label}
                       </span>
                     </div>
                     {item.description && (
-                      <p style={{ margin: '0.1rem 0 0', fontSize: '0.7rem', color: '#94a3b8' }}>
+                      <p style={{ margin: '0.1rem 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                         {item.description}
                       </p>
                     )}
                   </div>
-                  {item.action && <ChevronRight size={18} color="#94a3b8" />}
+                  {item.action && <ChevronRight size={18} color="var(--text-muted)" />}
                 </motion.div>
               ))}
             </div>
           </div>
         ))}
 
-        {/* Logout Button */}
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={handleLogout}
@@ -247,8 +257,8 @@ const Settings = () => {
             gap: '0.75rem',
             width: '100%',
             padding: '1rem',
-            backgroundColor: '#fee2e2',
-            border: '1px solid #fecaca',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
             borderRadius: '12px',
             color: '#ef4444',
             fontWeight: 700,
@@ -261,18 +271,16 @@ const Settings = () => {
           Logout
         </motion.button>
 
-        {/* App Version */}
         <p style={{ 
           textAlign: 'center', 
           fontSize: '0.6rem', 
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           marginTop: '2rem'
         }}>
-          ESWaT v1.0.0 | Built for 3MTT NextGen Challenge
+          ESWaT v2.0.0 | 🤖 AI-Powered | Built for TechCrush Group Golf Project
         </p>
       </div>
 
-      {/* Interactive Tutorial Modal */}
       <InteractiveTutorial 
         isOpen={showTutorial} 
         onClose={() => setShowTutorial(false)} 
