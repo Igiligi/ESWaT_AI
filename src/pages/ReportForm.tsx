@@ -13,8 +13,8 @@ import * as tf from '@tensorflow/tfjs';
 const STATUSES: BinStatus[] = ['Empty', 'Half-full', '75% full', 'Overflowing'];
 
 const TYPES: BinType[] = [
-  'Waste Bin',
-  'Open Dump'
+  'Public bin',
+  'Open dump'
 ];
 
 // Image compression function
